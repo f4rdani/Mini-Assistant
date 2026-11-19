@@ -1,0 +1,81 @@
+[package]
+name = "mini-assistant-ui"
+version = "0.1.0"
+edition = "2021"
+description = "Native Slint UI for Mini Assistant - no browser engine, backend linked in-process"
+
+[features]
+# `embedded-api` compiles backend-api-ai into the release binary so the portable
+# consumer build starts API + UI on a single click without `.bat` scripts.
+# In debug/development builds, `main.rs` keeps backend-api-ai modular/separate.
+default = ["embedded-api"]
+embedded-api = ["dep:api-ai"]
+dev-tools = []
+
+[dependencies]
+# The whole backend lives here: cookie extraction, storage, capture, hotkeys and
+# the provider-API client. Linked in-process — no IPC, no webview.
+app-core = { path = "../app-core" }
+api-ai = { path = "../backend-api-ai", default-features = false, optional = true }
+serde_json = "1"
+slint = { version = "1.18", default-features = false, features = [
+    "std",
+    "backend-winit",
+    "renderer-software",
+    "compat-1-2",
+] }
+windows = { version = "0.62", default-features = false, features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Imaging",
+    "Win32_Media_Audio",
+    "Win32_Media_MediaFoundation",
+] }
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Controls",
+    "Win32_UI_Controls_Dialogs",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_SystemInformation",
+    "Win32_System_Console",
+] }
+# Enables resvg-based SVG rasterisation (Image::load_from_svg_data).
+# The slint facade does not expose this feature, so we enable it directly.
+# Cargo unifies features, so i-slint-core ends up with `svg` enabled.
+i-slint-core = { version = "=1.18.1", default-features = false, features = [
+    "svg",                # resvg rasterisation for the 52 line icons
+    "image-decoders",     # PNG/JPEG decoding for brand logos + mascot sprite
+] }
+# Attachment thumbnails are downscaled to 160px before they reach Slint. Loading
+# a full-resolution photo into the software renderer would add tens of MB and
+# break the <40 MB working-set target.
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+    "webp",
+    "gif",
+] }
+
+[build-dependencies]
+slint-build = "1.18"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

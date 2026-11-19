@@ -1,0 +1,603 @@
+import { Tokens, Icons } from "theme.slint";
+
+// ===========================================================================
+//  Shared components â€” 1:1 port of the .st-* / control classes in
+//  src/lib/startorch-ui.css and the <style> block of src/routes/+page.svelte
+//
+//  NOTE on Slint syntax used here:
+//   * an element id must be declared BEFORE it is referenced
+//   * a string has no `.length`, so auto-sizing uses a hidden measuring Text
+//   * `@markdown()` only accepts a literal -> rich text comes from Rust
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+//  Icon â€” renders one of the 52 SVG icons extracted from src/lib/Icon.svelte.
+export component Icon inherits Rectangle {
+    in property <string> name: "spark";
+    in property <length> size: 16px;
+    in property <color> tint: #FFFFFF;
+
+    // A Rectangle defaults to the parent size, which would offset the glyph.
+    // Pin it to the icon size instead.
+    width: root.size;
+    height: root.size;
+
+    Image {
+        x: 0; y: 0;
+        width: root.size;
+        height: root.size;
+        source: Icons.render-sized(root.name, root.tint, max(8, round(root.size / 1px)));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Action button with icon and label used by the message bubble footer.
+// ---------------------------------------------------------------------------
+export component HudAction inherits Rectangle {
+    in property <string> icon-name: "";
+    in property <string> label: "";
+    in property <bool> active: false;
+    callback clicked;
+
+    width: (root.icon-name != "" ? 14px : 0px) + lbl.preferred-width + 16px;
+    height: 24px;
+    background: root.active ? #0E334D : (touch.has-hover ? #222E42 : #161F2E);
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.active ? #38BDF8 : (touch.has-hover ? #475569 : #2B3A4E);
+
+    animate background, border-color { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    if root.icon-name != "" : Icon {
+        x: 6px;
+        y: (parent.height - 11px) / 2;
+        size: 11px;
+        name: root.icon-name;
+        tint: root.active ? #38BDF8 : (touch.has-hover ? #F1F5F9 : #94A3B8);
+    }
+
+    lbl := Text {
+        x: root.icon-name != "" ? 20px : 8px;
+        y: 0;
+        height: parent.height;
+        text: root.label;
+        color: root.active ? #38BDF8 : (touch.has-hover ? #F1F5F9 : #94A3B8);
+        font-family: Tokens.font-sans;
+        font-size: 11px;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  GlassCard â€” .st-card
+//  background: var(--st-surface-glass); backdrop-filter: blur(16px);
+//  border: 1px solid var(--st-border-subtle);
+//  border-radius: 12px 12px 4px 12px;  (chamfered bottom-right corner)
+// ---------------------------------------------------------------------------
+export component GlassCard inherits Rectangle {
+    in property <color> fill: Tokens.surface-glass;
+    in property <color> border: Tokens.border-subtle;
+    in property <length> radius: Tokens.radius-card;
+    in property <bool> diamond: false;
+    in property <length> diamond-right: 16px;
+    // .panel-card / .st-card clip-path: 14px diagonal at the bottom-right.
+    in property <bool> chamfer: false;
+    in property <color> chamfer-fill: Tokens.bg-void;
+
+    background: root.fill;
+    border-width: 1px;
+    border-color: root.border;
+    border-radius: root.radius;
+    clip: true;
+
+    // ::after â€” 7x7 gold square rotated 45deg, box at top 12 / right 16.
+    // A 10x10 diamond has the same rotated bounding box and centre.
+    if root.diamond : Path {
+        x: root.width - root.diamond-right - 9px;
+        y: 11px;
+        width: 10px; height: 10px;
+        fill: Tokens.polestar-gold;
+        opacity: 0.7;
+        commands: "M 0 5 L 5 0 L 10 5 L 5 10 Z";
+    }
+
+    if root.chamfer : Path {
+        x: root.width - 14px;
+        y: root.height - 14px;
+        width: 14px; height: 14px;
+        fill: root.chamfer-fill;
+        commands: "M 14 0 L 14 14 L 0 14 Z";
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  PrimaryButton — .st-btn.st-btn-primary (BUKA FLOATING HUD signature style)
+//  background: linear-gradient(135deg,#FF8FB1,#FFB3CA); color:#070A12;
+//  box-shadow: 0 4px 14px rgba(255,143,177,0.28);
+//  chamfered bottom-right 8px corner cut
+// ---------------------------------------------------------------------------
+export component PrimaryButton inherits Rectangle {
+    in property <string> label: "";
+    in property <string> icon: "";
+    in property <length> icon-size: 14px;
+    in property <color> icon-tint: #070A12;
+    in property <color> chamfer-fill: #101627;
+    in property <length> radius: 8px;
+    in property <length> font-size: Tokens.panel-font-min;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    // hidden measuring text -> natural width of the label
+    measure := Text {
+        text: root.label;
+        opacity: 0;
+        font-family: Tokens.font-display;
+        font-size: root.font-size;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+    }
+
+    width: max(124px, measure.width + (root.icon != "" ? 62px : 44px));
+    height: 38px;
+
+    background: Tokens.grad-aemeath;
+    border-radius: root.radius;
+    drop-shadow-blur: 14px;
+    drop-shadow-color: #FF8FB147;
+    drop-shadow-offset-y: 4px;
+    opacity: root.enabled ? 1 : 0.38;
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    if root.enabled && touch.has-hover : Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: root.radius;
+        background: #FFFFFF22;
+    }
+
+    HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        alignment: center;
+        spacing: 8px;
+        padding-left: 12px;
+        padding-right: 12px;
+
+        if root.icon != "" : Icon {
+            y: (parent.height - root.icon-size) / 2;
+            size: root.icon-size;
+            name: root.icon;
+            tint: root.icon-tint;
+        }
+        Text {
+            height: parent.height;
+            text: root.label;
+            color: #070A12;
+            font-family: Tokens.font-display;
+            font-size: root.font-size;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // Bottom-right signature chamfer cut (matches BUKA FLOATING HUD)
+    Path {
+        x: parent.width - 8px;
+        y: parent.height - 8px;
+        width: 8px;
+        height: 8px;
+        fill: root.chamfer-fill;
+        commands: "M 0 8 L 8 0 L 8 8 Z";
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  HoloButton — .st-btn secondary / paired button ("tombol biasa")
+// ---------------------------------------------------------------------------
+export component HoloButton inherits Rectangle {
+    in property <string> label: "";
+    in property <string> icon: "";
+    in property <length> icon-size: 14px;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    measure := Text {
+        text: root.label;
+        opacity: 0;
+        font-family: Tokens.font-sans-semibold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 600;
+    }
+
+    width: max(120px, measure.width + (root.icon != "" ? 56px : 38px));
+    height: 38px;
+
+    background: (root.enabled && touch.has-hover) ? #283147 : #1E2434;
+    border-width: 1px;
+    border-color: (root.enabled && touch.has-hover) ? #3CE8FF66 : Tokens.border-subtle;
+    border-radius: 7px;
+    opacity: root.enabled ? 1 : 0.45;
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        alignment: center;
+        spacing: 7px;
+        padding-left: 12px;
+        padding-right: 12px;
+
+        if root.icon != "" : Icon {
+            y: (parent.height - root.icon-size) / 2;
+            size: root.icon-size;
+            name: root.icon;
+            tint: root.enabled ? Tokens.text-main : #64748B;
+        }
+        Text {
+            height: parent.height;
+            text: root.label;
+            color: root.enabled ? Tokens.text-main : #64748B;
+            font-family: Tokens.font-sans-semibold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  IconButton â€” .st-btn-icon  (34x34 orbital, rotates 15deg on hover)
+// ---------------------------------------------------------------------------
+export component IconButton inherits Rectangle {
+    in property <string> icon: "settings";
+    in property <length> icon-size: 15px;
+    in property <color> icon-tint: Tokens.text-muted;
+    in property <bool> active: false;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    width: 34px;
+    height: 34px;
+    border-radius: 17px;
+    border-width: 1px;
+
+    touch := TouchArea {
+        clicked => { if (root.enabled) { root.clicked(); } }
+    }
+
+    states [
+        hover when touch.has-hover : {
+            border-color: Tokens.polestar-gold;
+        }
+        pressed when touch.pressed : {
+            background: #FFD1661F;
+        }
+    ]
+    background: root.active ? #FFD1661F : #0E1422B3;
+    border-color: root.active ? Tokens.polestar-gold : Tokens.border-subtle;
+
+    Image {
+        x: (root.width - root.icon-size) / 2;
+        y: (root.height - root.icon-size) / 2;
+        width: root.icon-size;
+        height: root.icon-size;
+        source: Icons.render(root.icon, root.active ? Tokens.polestar-gold : root.icon-tint);
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  OrbitalSwitch â€” .st-switch  (38x20 pill + 14px thumb)
+// ---------------------------------------------------------------------------
+export component OrbitalSwitch inherits Rectangle {
+    in property <bool> checked: false;
+    in property <color> thumb-on: Tokens.aemeath-pink;
+    in property <color> thumb-off: Tokens.halo-cyan;
+    callback toggled;
+
+    width: 38px;
+    height: 20px;
+    border-radius: 10px;
+    border-width: 1px;
+
+    touch := TouchArea {
+        clicked => { root.toggled(); }
+    }
+
+    states [
+        on when root.checked : {
+            background: @linear-gradient(135deg, #3CE8FF40, #FF8FB166);
+            border-color: Tokens.aemeath-pink;
+        }
+    ]
+    background: root.checked ? @linear-gradient(135deg, #3CE8FF40, #FF8FB166) : #0E1422E6;
+    border-color: root.checked ? Tokens.aemeath-pink : Tokens.border-subtle;
+
+    Rectangle {
+        x: root.checked ? 22px : 2px;
+        y: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+        background: root.checked ? root.thumb-on : root.thumb-off;
+        drop-shadow-blur: 8px;
+        drop-shadow-color: root.checked ? #FF8FB1D9 : #3CE8FF80;
+        animate x { duration: 250ms; easing: ease-in-out; }
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Equalizer â€” .st-eq  (4 animated bars, gradient cyan -> pink)
+// ---------------------------------------------------------------------------
+export component Equalizer inherits Rectangle {
+    // .st-eq: width 21 (4 x 3px bars, 3px gap), height 16.
+    // The browser animates 4px -> 16px with a 0.75s alternate ease-in-out
+    // and 0/150/300/100ms delays. `animated` is opt-in so the HUD keeps its
+    // established static render; the panel follows the web animation.
+    in property <bool> animated: false;
+    width: 21px;
+    height: 16px;
+
+    private property <int> tick: 0;
+    private property <[length]> wave: [
+        4.00px, 4.10px, 4.43px, 4.98px, 5.77px, 6.78px, 7.98px, 9.31px,
+        10.69px, 12.02px, 13.22px, 14.23px, 15.02px, 15.57px, 15.90px, 16.00px,
+        15.90px, 15.57px, 15.02px, 14.23px, 13.22px, 12.02px, 10.69px, 9.31px,
+        7.98px, 6.78px, 5.77px, 4.98px, 4.43px, 4.10px
+    ];
+    private property <[float]> wave-opacity: [
+        0.450, 0.455, 0.470, 0.495, 0.531, 0.577, 0.633, 0.693,
+        0.757, 0.817, 0.873, 0.919, 0.955, 0.980, 0.995, 1.000,
+        0.995, 0.980, 0.955, 0.919, 0.873, 0.817, 0.757, 0.693,
+        0.633, 0.577, 0.531, 0.495, 0.470, 0.455
+    ];
+
+    pure function waveIndex(off: int) -> int {
+        root.tick + off >= 30 ? root.tick + off - 30 : root.tick + off
+    }
+
+    Timer {
+        interval: 75ms;
+        running: root.animated;
+        triggered => {
+            root.tick = root.tick + 1;
+            if root.tick >= 30 {
+                root.tick = 0;
+            }
+        }
+    }
+
+    for i in 4 : Rectangle {
+        x: i * 6px;
+        y: root.height - self.height;
+        width: 3px;
+        property <int> wi: root.waveIndex(i == 0 ? 0 : i == 1 ? 27 : i == 2 ? 24 : 28);
+        height: root.animated
+            ? root.wave[self.wi]
+            : (i == 0 ? 7px : i == 1 ? 12px : i == 2 ? 16px : 9px);
+        border-radius: 2px;
+        background: @linear-gradient(0deg, Tokens.halo-cyan, Tokens.aemeath-pink);
+        opacity: root.animated ? root.wave-opacity[self.wi] : 0.9;
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  StatusPill â€” .prov-status-pill  (dot + label)
+// ---------------------------------------------------------------------------
+export component StatusPill inherits Rectangle {
+    in property <string> label: "";
+    in property <color> tone: Tokens.sync-emerald;
+    in property <color> fill: #FFFFFF0D;
+    in property <color> border: #FFFFFF1F;
+    in property <color> text-color: Tokens.text-muted;
+    // The live "off" pill uses a grey dot, not the text colour.
+    in property <color> dot-color: root.tone;
+
+    measure := Text {
+        text: root.label;
+        opacity: 0;
+        font-family: Tokens.font-sans-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+    }
+
+    // border 1 + pad-left 9 + dot 6 + gap 6 + pad-right 9 + border 1
+    width: measure.width + 32px;
+    height: 26px;
+
+    background: root.fill;
+    border-radius: 13px;
+    border-width: 1px;
+    border-color: root.border;
+
+    Rectangle {
+        x: 9px;
+        y: (root.height - 6px) / 2;
+        width: 6px; height: 6px;
+        border-radius: 3px;
+        background: root.dot-color;
+    }
+
+    Text {
+        x: 21px; y: 0;
+        width: parent.width - 30px;
+        height: parent.height;
+        text: root.label;
+        color: root.text-color;
+        font-family: Tokens.font-sans-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        vertical-alignment: center;
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  BadgeTag — .badge-tag-status / .badge-tag-gold
+// ---------------------------------------------------------------------------
+export component BadgeTag inherits Rectangle {
+    in property <string> label: "";
+    in property <color> tone: Tokens.sync-emerald;
+    in property <color> fill: #00E6991A;
+    in property <color> border: #00E6994D;
+
+    measure := Text {
+        text: root.label;
+        opacity: 0;
+        font-family: Tokens.font-sans-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+    }
+
+    width: measure.width + 22px;
+    height: 26px;
+
+    background: root.fill;
+    border-width: 1px;
+    border-color: root.border;
+    border-radius: 6px;
+
+    Text {
+        x: 0; y: 0;
+        width: parent.width;
+        height: parent.height;
+        text: root.label;
+        color: root.tone;
+        font-family: Tokens.font-sans-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  AemeathAvatar â€” the mascot sprite inside a halo aura
+// ---------------------------------------------------------------------------
+export component AemeathAvatar inherits Rectangle {
+    in property <image> sprite;
+    // Optional 4x render of a 36px web avatar (84x84 with a 24px transparent
+    // margin). Used by the panel so its small sprites match Chromium's direct
+    // 36px scaling instead of a downscaled 64px bake.
+    in property <image> sprite-hi;
+    in property <bool> hi-res: false;
+    in property <bool> halo: false;
+    // Extra outer drop-shadow used by .brand-avatar-box. The sprite already
+    // contains .st-aemeath-img's own (0 2px 8px cyan .3) shadow.
+    in property <bool> glow: false;
+    in property <bool> singing: false;
+    in property <int> sing-phase: 0;
+    in property <length> size: 32px;
+    // inline box can be taller than the sprite (the web div is 64x64 but the
+    // surrounding `.intro-avatar-box` line box measures 64x68)
+    in property <length> box-height: root.size;
+    // .aemeath-halo-orbit â€” the captured 74px crop is 115.6% of the 64px
+    // sprite, so it scales with the avatar instead of staying 74px everywhere.
+    in property <length> halo-size: root.size * 74 / 64;
+
+    property <length> sing-bob-y: root.singing && !root.hi-res ? (Math.mod(root.sing-phase, 2) == 0 ? 0px : -2px) : 0px;
+    animate sing-bob-y { duration: 160ms; easing: ease-in-out; }
+
+    width: root.size;
+    height: root.box-height;
+
+    if root.halo : Image {
+        x: (root.size - root.halo-size) / 2;
+        y: (root.size - root.halo-size) / 2;
+        width: root.halo-size;
+        height: root.halo-size;
+        image-fit: contain;
+        source: @image-url("../assets/hud/halo.png");
+    }
+
+    // 128px glow is drawn at 2*size, with the 96px sprite (drawn at 1.5*size)
+    // centered inside it, so both layers share the same transform.
+    if root.glow : Image {
+        x: 0px - root.size / 2;
+        y: 0px - root.size / 2;
+        width: root.size * 2;
+        height: root.size * 2;
+        image-fit: fill;
+        source: @image-url("../assets/avatar/brand_glow.png");
+    }
+
+    // Panel path: the asset is a 4x Chromium render of the 36px web image,
+    // with 24px of padding around the box for its 8px drop-shadow.
+    if root.hi-res : Image {
+        x: 0px - 24px;
+        y: 0px - 24px;
+        width: root.size + 48px;
+        height: root.size + 48px;
+        image-fit: fill;
+        source: root.sprite-hi;
+    }
+
+    // HUD path: raw mascot sprite, no tiling background
+    // (.brand-avatar-box / .bubble-avatar-center have no box style)
+    // Baked at 96x96: the 64x64 img box sits at (16,16) with the browser's
+    // own pixelated contain scaling and drop-shadow(0 2px 8px cyan .3).
+    // Drawing at 1.5*size puts the 64px box back at (0,0).
+    if !root.hi-res : Image {
+        x: 0px - root.size / 4;
+        y: 0px - root.size / 4 + root.sing-bob-y;
+        width: root.size + root.size / 2;
+        height: root.size + root.size / 2;
+        image-fit: fill;
+        image-rendering: pixelated;
+        source: root.sprite;
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  SectionTitle â€” .section-heading h2 + p
+// ---------------------------------------------------------------------------
+export component SectionTitle inherits Rectangle {
+    in property <string> title: "";
+    in property <string> subtitle: "";
+    in property <color> accent: Tokens.text-main;
+
+    height: 76px;
+
+    Text {
+        x: 0; y: 0;
+        text: root.title;
+        color: root.accent;
+        font-family: Tokens.font-display;
+        font-size: Tokens.panel-font-title;
+        font-weight: 700;
+        letter-spacing: 0.72px;
+    }
+
+    Text {
+        x: 0; y: 31px;
+        width: parent.width;
+        text: root.subtitle;
+        color: Tokens.text-muted;
+        font-family: Tokens.font-sans;
+        font-size: Tokens.panel-font-min;
+        line-height-factor: 1.25;
+        wrap: word-wrap;
+    }
+}
+

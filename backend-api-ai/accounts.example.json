@@ -1,0 +1,7 @@
+[
+  {
+    "name": "main",
+    "cookie": "intercom-device-id-xxx=...; ds_session_id=...; __cf_bm=...",
+    "token": "PASTE_localStorage.userToken_HERE"
+  }
+]

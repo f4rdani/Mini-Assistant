@@ -1,0 +1,3869 @@
+import { Tokens, Icons } from "theme.slint";
+import {
+    Icon, GlassCard, PrimaryButton, HoloButton, IconButton, OrbitalSwitch,
+    Equalizer, StatusPill, BadgeTag, AemeathAvatar, SectionTitle
+} from "components.slint";
+import { ScrollView } from "std-widgets.slint";
+import { ProviderItem, BrowserItem, VaultKeyItem, TopicItem, TopicCategory } from "model.slint";
+
+// ---------------------------------------------------------------------------
+//  Small page-local building blocks for the secondary Control Panel pages.
+// ---------------------------------------------------------------------------
+component MonoBadge inherits Rectangle {
+    in property <string> label: "";
+    in property <color> tone: Tokens.sync-emerald;
+    in property <color> fill: #00E6991A;
+    in property <color> border: #00E6994D;
+
+    measure := Text {
+        text: root.label;
+        opacity: 0;
+        font-family: Tokens.font-mono-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+    }
+
+    width: max(96px, measure.width + 22px);
+    height: 26px;
+    background: root.fill;
+    border-width: 1px;
+    border-color: root.border;
+    border-radius: 6px;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.label;
+        color: root.tone;
+        font-family: Tokens.font-mono-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component KeyCap inherits Rectangle {
+    in property <string> label: "";
+
+    measure := Text {
+        text: root.label;
+        opacity: 0;
+        font-family: Tokens.font-mono-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+    }
+
+    width: max(28px, measure.width + 16px);
+    height: 24px;
+    background: #070A12;
+    border-width: 1px;
+    border-color: Tokens.border-subtle;
+    border-radius: 4px;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.label;
+        color: Tokens.text-main;
+        font-family: Tokens.font-mono-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// ON/OFF pill used by both the provider rows and the settings rows.
+// Keeping one component here guarantees the two pages stay visually identical.
+component PillToggle inherits Rectangle {
+    in property <bool> checked: false;
+    callback toggled;
+
+    width: 92px;
+    height: 32px;
+    background: root.checked ? #2CE59B1A : #FFFFFF08;
+    border-width: 1px;
+    border-color: root.checked ? #2CE59B80 : #FFFFFF26;
+    border-radius: 16px;
+
+    // track 36x20 at (7,6)
+    Rectangle {
+        x: 7px; y: 6px;
+        width: 36px; height: 20px;
+        background: root.checked ? #2CE59B59 : #FFFFFF1A;
+        border-radius: 10px;
+
+        Rectangle {
+            animate x { duration: 220ms; easing: ease-out; }
+            x: root.checked ? 18px : 2px;
+            y: 2px;
+            width: 16px; height: 16px;
+            background: root.checked ? Tokens.sync-emerald : #94A3B8;
+            border-radius: 8px;
+            drop-shadow-blur: 6px;
+            drop-shadow-color: root.checked ? #2CE59B99 : #00000000;
+        }
+    }
+    Text {
+        x: 47px; y: 0;
+        width: 38px; height: 32px;
+        text: root.checked ? "ON" : "OFF";
+        color: root.checked ? Tokens.sync-emerald : Tokens.text-muted;
+        font-family: Tokens.font-sans-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+component KeySlotPrefix inherits Rectangle {
+    in property <string> badge;
+    in property <string> source;
+    in property <bool> is-primary;
+    in property <[image]> browser-logos;
+
+    width: 86px;
+    height: 26px;
+
+    Rectangle {
+        x: 0; y: 0;
+        width: 54px; height: 26px;
+        background: root.is-primary ? #22C55E26 : #3CE8FF1F;
+        border-width: 1px;
+        border-color: root.is-primary ? #22C55E59 : #3CE8FF4D;
+        border-radius: 5px;
+
+        Text {
+            width: parent.width; height: parent.height;
+            text: root.badge;
+            color: root.is-primary ? Tokens.sync-emerald : Tokens.halo-cyan;
+            font-family: Tokens.font-mono-bold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    if root.source == "chrome" || root.source == "edge" || root.source == "brave" || root.source == "firefox" : Image {
+        x: 60px; y: 4px;
+        width: 18px; height: 18px;
+        source: root.browser-logos[
+            root.source == "edge" ? 1
+            : root.source == "brave" ? 2
+            : root.source == "firefox" ? 3 : 0
+        ];
+        image-fit: contain;
+    }
+    if root.source != "chrome" && root.source != "edge" && root.source != "brave" && root.source != "firefox" : Icon {
+        x: 61px; y: 5px;
+        size: 16px;
+        name: "key";
+        tint: Tokens.sync-emerald;
+    }
+}
+
+component VaultItem inherits Rectangle {
+    in property <image> logo;
+    in property <[image]> browser-logos: [];
+    in property <[VaultKeyItem]> keys: [];
+    in property <string> provider-name: "";
+    in property <string> token-kind: "";
+    in property <string> placeholder: "";
+    in property <string> link-text: "";
+    in property <string> hint-suffix: "";
+    in property <string> hint-line2: "";
+    in property <length> link-width: 50px;
+    in property <length> link-x: 44px;
+    // Live vault entry: status format "1 Connect", "2 Connect", "0 Connect"
+    in property <string> status: "0 Connect";
+    in property <bool> connected: false;
+    in property <bool> input-enabled: true;
+    in property <string> accounts-info: "";
+    in-out property <string> token-value;
+    in property <string> link-url: "";
+    callback save-token(string);
+    // Both extra buttons on the card map onto the same two cookie paths the
+    // page header exposes, so they are never decorative.
+    callback fetch-requested;
+    callback open-link(string);
+    callback promote-key(string);
+    callback remove-key(string);
+
+    property <length> keys-block-h: root.keys.length > 0 ? (root.keys.length * 46px - 6px) : 34px;
+    property <length> body-y: 62px + root.keys-block-h + 10px;
+
+    height: root.body-y + 152px;
+    background: #FFFFFF08;
+    border-width: 1px;
+    border-color: #FFFFFF14;
+    border-radius: 8px;
+
+    Image {
+        x: 16px; y: 16px;
+        width: 26px; height: 26px;
+        source: root.logo;
+        image-fit: contain;
+    }
+    Text {
+        x: 52px; y: 11px;
+        text: root.provider-name;
+        color: Tokens.text-main;
+        font-family: Tokens.font-mono-bold;
+        font-size: Tokens.panel-font-card;
+        font-weight: 700;
+    }
+    Text {
+        x: 52px; y: 34px;
+        text: root.token-kind;
+        color: Tokens.text-muted;
+        font-family: Tokens.font-mono;
+        font-size: Tokens.panel-font-min;
+    }
+
+    // Status badge ("X Connect")
+    Rectangle {
+        x: parent.width - 16px - 110px - 10px - 118px; y: 14px;
+        width: 118px; height: 28px;
+        background: root.connected ? #22C55E1A : #FFFFFF0D;
+        border-width: 1px;
+        border-color: root.connected ? #22C55E4D : #FFFFFF1F;
+        border-radius: 14px;
+
+        Rectangle {
+            x: 11px; y: 11px;
+            width: 6px; height: 6px;
+            border-radius: 3px;
+            background: root.connected ? #22C55E : #64748B;
+        }
+        Text {
+            x: 24px; y: 0;
+            width: 86px; height: 28px;
+            text: root.status;
+            color: root.connected ? Tokens.sync-emerald : Tokens.text-muted;
+            font-family: Tokens.font-mono-bold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+
+    // External link button
+    Rectangle {
+        x: parent.width - 16px - 110px; y: 14px;
+        width: 110px; height: 28px;
+        background: #3CE8FF1A;
+        border-width: 1px;
+        border-color: #3CE8FF59;
+        border-radius: 6px;
+
+        Icon {
+            x: 10px; y: 8px;
+            size: 13px;
+            name: "external-link";
+            tint: Tokens.halo-cyan;
+        }
+        Text {
+            x: 28px; y: 0;
+            width: 76px; height: 28px;
+            text: "Buka Link";
+            color: Tokens.halo-cyan;
+            font-family: Tokens.font-mono-bold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+        TouchArea {
+            enabled: root.link-url != "";
+            mouse-cursor: pointer;
+            clicked => { root.open-link(root.link-url); }
+        }
+    }
+
+    // Connected account(s) list (e.g. "Key 1: [Chrome] demo.chrome@example.com", "Key 2: [Edge] ...")
+    if root.keys.length == 0 : Rectangle {
+        x: 16px; y: 62px;
+        width: parent.width - 32px; height: 34px;
+        background: root.accounts-info != "" ? #22C55E14 : #FFFFFF08;
+        border-width: 1px;
+        border-color: root.accounts-info != "" ? #22C55E40 : #FFFFFF14;
+        border-radius: 6px;
+
+        Icon {
+            x: 10px; y: 10px;
+            size: 14px;
+            name: root.accounts-info != "" ? "check" : "key";
+            tint: root.accounts-info != "" ? Tokens.sync-emerald : Tokens.text-muted;
+        }
+        Text {
+            x: 31px; y: 0;
+            width: parent.width - 42px; height: 34px;
+            text: root.accounts-info != "" ? root.accounts-info
+                : root.input-enabled ? "Belum ada sesi cookie/token terhubung" : "Belum didukung";
+            color: root.accounts-info != "" ? Tokens.sync-emerald : Tokens.text-muted;
+            font-family: Tokens.font-mono-bold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    for k[idx] in root.keys : Rectangle {
+        x: 16px; y: 62px + idx * 46px;
+        width: parent.width - 32px; height: 40px;
+        background: k.tone == "red" ? #EF444418
+            : k.tone == "amber" ? #FFD16614
+            : k.tone == "cyan" ? #3CE8FF12
+            : #22C55E14;
+        border-width: 1px;
+        border-color: k.tone == "red" ? #EF44444D
+            : k.tone == "amber" ? #FFD1664D
+            : k.tone == "cyan" ? #3CE8FF40
+            : #22C55E40;
+        border-radius: 7px;
+
+        // Key index pill + source browser icon
+        KeySlotPrefix {
+            x: 8px; y: 7px;
+            badge: k.badge;
+            source: k.source;
+            is-primary: k.is-primary;
+            browser-logos: root.browser-logos;
+        }
+
+        // Masked account email
+        Text {
+            x: 92px; y: 0;
+            width: parent.width - 92px - (k.is-primary ? 156px : 264px);
+            height: 40px;
+            text: k.email;
+            color: k.tone == "red" ? #FCA5A5
+                : k.tone == "amber" ? #FDE68A
+                : Tokens.text-main;
+            font-family: Tokens.font-mono-bold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        // Pool state badge ("Utama · Siap" | "Cadangan · Siap" | "Limit (...)")
+        Rectangle {
+            x: k.is-primary ? (parent.width - 148px) : (parent.width - 258px);
+            y: 7px;
+            width: k.is-primary ? 108px : 118px;
+            height: 26px;
+            background: k.tone == "red" ? #EF444424
+                : k.tone == "amber" ? #FFD16620
+                : k.tone == "cyan" ? #3CE8FF1A
+                : #22C55E20;
+            border-width: 1px;
+            border-color: k.tone == "red" ? #EF444459
+                : k.tone == "amber" ? #FFD16659
+                : k.tone == "cyan" ? #3CE8FF4D
+                : #22C55E4D;
+            border-radius: 13px;
+
+            Text {
+                width: parent.width; height: parent.height;
+                text: k.status-text;
+                color: k.tone == "red" ? #FCA5A5
+                    : k.tone == "amber" ? Tokens.polestar-gold
+                    : k.tone == "cyan" ? Tokens.halo-cyan
+                    : Tokens.sync-emerald;
+                font-family: Tokens.font-sans-semibold;
+                font-size: Tokens.panel-font-min;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        // Promote to Key 1 ("Set Utama", shown for Key 2, Key 3, ...)
+        if !k.is-primary : Rectangle {
+            x: parent.width - 134px; y: 7px;
+            width: 94px; height: 26px;
+            background: prom-touch.has-hover ? #3CE8FF2E : #1E2434;
+            border-width: 1px;
+            border-color: prom-touch.has-hover ? Tokens.halo-cyan : #3CE8FF59;
+            border-radius: 6px;
+
+            prom-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.promote-key(k.id); }
+            }
+            HorizontalLayout {
+                width: parent.width; height: parent.height;
+                alignment: center;
+                spacing: 4px;
+                Icon {
+                    y: (parent.height - 12px) / 2;
+                    size: 12px;
+                    name: "arrow-up";
+                    tint: Tokens.halo-cyan;
+                }
+                Text {
+                    height: parent.height;
+                    text: "Set Utama";
+                    color: Tokens.halo-cyan;
+                    font-family: Tokens.font-sans-semibold;
+                    font-size: Tokens.panel-font-min;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Remove key
+        Rectangle {
+            x: parent.width - 34px; y: 7px;
+            width: 26px; height: 26px;
+            background: rem-touch.has-hover ? #EF44442E : #FFFFFF0A;
+            border-width: 1px;
+            border-color: rem-touch.has-hover ? #EF444466 : #FFFFFF1F;
+            border-radius: 6px;
+
+            rem-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.remove-key(k.id); }
+            }
+            Icon {
+                x: 6px; y: 6px;
+                size: 14px;
+                name: "close";
+                tint: rem-touch.has-hover ? #FCA5A5 : Tokens.text-muted;
+            }
+        }
+    }
+
+    // Input row (full-width text input + action icon)
+    Rectangle {
+        x: 16px; y: root.body-y;
+        width: parent.width - 32px - 48px; height: 40px;
+        background: #070A12F2;
+        border-width: 1px;
+        border-color: root.input-enabled ? #3CE8FF59 : #FFFFFF14;
+        border-radius: 7px;
+
+        TextInput {
+            x: 12px; y: 0;
+            width: parent.width - 24px; height: 40px;
+            text <=> root.token-value;
+            enabled: root.input-enabled;
+            color: Tokens.text-main;
+            font-family: Tokens.font-mono;
+            font-size: Tokens.panel-font-min;
+            vertical-alignment: center;
+        }
+        if root.token-value == "" : Text {
+            x: 12px; y: 0;
+            width: parent.width - 24px; height: 40px;
+            text: root.placeholder;
+            color: Tokens.text-dim;
+            font-family: Tokens.font-mono;
+            font-size: Tokens.panel-font-min;
+            vertical-alignment: center;
+        }
+    }
+    Rectangle {
+        x: parent.width - 16px - 40px; y: root.body-y;
+        width: 40px; height: 40px;
+        background: root.token-value == "" ? #FFFFFF0D : #3CE8FF33;
+        border-width: 1px;
+        border-color: #3CE8FF2E;
+        border-radius: 7px;
+
+        Icon {
+            x: 12px; y: 12px;
+            size: 16px;
+            name: root.token-value == "" ? "eye" : "send";
+            tint: root.token-value == "" ? Tokens.text-muted : #FFFFFF;
+        }
+        TouchArea {
+            enabled: root.input-enabled && root.token-value != "";
+            mouse-cursor: pointer;
+            clicked => { root.save-token(root.token-value); }
+        }
+    }
+
+    // Hint & guidance row
+    HorizontalLayout {
+        x: 16px; y: root.body-y + 48px;
+        width: parent.width - 32px;
+        height: 22px;
+        spacing: 5px;
+        alignment: start;
+
+        Text {
+            text: "Manual:";
+            color: Tokens.text-muted;
+            font-family: Tokens.font-sans;
+            font-size: Tokens.panel-font-min;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.link-text;
+            color: Tokens.halo-cyan;
+            font-family: Tokens.font-sans;
+            font-size: Tokens.panel-font-min;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.hint-suffix;
+            color: Tokens.text-muted;
+            font-family: Tokens.font-sans;
+            font-size: Tokens.panel-font-min;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    Text {
+        x: 16px; y: root.body-y + 73px;
+        width: parent.width - 32px; height: 22px;
+        text: root.hint-line2;
+        color: Tokens.text-muted;
+        font-family: Tokens.font-sans;
+        font-size: Tokens.panel-font-min;
+        overflow: elide;
+    }
+
+    // Action buttons row: Tombol 1 (Primary chamfer CTA) + Tombol 2 (Secondary ordinary)
+    PrimaryButton {
+        x: 16px; y: root.body-y + 104px;
+        width: 176px; height: 36px;
+        chamfer-fill: #131925;
+        icon: "bolt";
+        icon-size: 13px;
+        label: "Ambil Otomatis";
+        enabled: root.input-enabled;
+        clicked => { root.fetch-requested(); }
+    }
+    HoloButton {
+        x: 204px; y: root.body-y + 104px;
+        width: 176px; height: 36px;
+        icon: "check";
+        icon-size: 13px;
+        label: "Simpan Manual";
+        enabled: root.input-enabled && root.token-value != "";
+        clicked => { root.save-token(root.token-value); }
+    }
+}
+
+component ShortcutRow inherits Rectangle {
+    in property <string> key1: "";
+    in property <string> key2: "";
+    in property <length> key1-w: 40px;
+    in property <length> key2-w: 28px;
+    in property <length> key2-x: 56px;
+    in property <length> detail-x: 150px;
+    in property <string> title: "";
+    in property <string> hint: "";
+
+    height: 64px;
+    background: #0E1422A6;
+    border-width: 1px;
+    border-color: Tokens.border-subtle;
+    border-radius: 8px;
+
+    HorizontalLayout {
+        x: 14px; y: 0;
+        height: parent.height;
+        spacing: 6px;
+        alignment: start;
+
+        Rectangle {
+            y: (parent.height - 24px) / 2;
+            width: k1.width; height: 24px;
+            k1 := KeyCap {
+                label: root.key1;
+            }
+        }
+        if root.key2 != "" : Text {
+            height: parent.height;
+            text: "+";
+            color: Tokens.text-main;
+            font-family: Tokens.font-mono;
+            font-size: Tokens.panel-font-min;
+            vertical-alignment: center;
+        }
+        if root.key2 != "" : Rectangle {
+            y: (parent.height - 24px) / 2;
+            width: k2.width; height: 24px;
+            k2 := KeyCap {
+                label: root.key2;
+            }
+        }
+    }
+
+    Text {
+        x: root.detail-x; y: 10px;
+        width: parent.width - root.detail-x - 14px;
+        text: root.title;
+        color: Tokens.text-main;
+        font-family: Tokens.font-sans-bold;
+        font-size: Tokens.panel-font-md;
+        font-weight: 700;
+    }
+    Text {
+        x: root.detail-x; y: 34px;
+        width: parent.width - root.detail-x - 14px;
+        text: root.hint;
+        color: Tokens.text-muted;
+        font-family: Tokens.font-sans;
+        font-size: Tokens.panel-font-min;
+        overflow: elide;
+    }
+}
+
+component SettingToggleRow inherits Rectangle {
+    in property <string> setting-name: "";
+    in property <string> hint1: "";
+    in property <string> hint2: "";
+    in property <string> hint3: "";
+    in property <length> row-h: 72px;
+    in property <bool> checked: false;
+    // The parent owns the value: the row reports the requested state and the
+    // binding re-renders once Rust has persisted it.
+    callback toggled(value: bool);
+
+    height: root.row-h;
+    background: #0E142299;
+    border-width: 1px;
+    border-color: Tokens.border-subtle;
+    border-radius: 8px;
+
+    Text {
+        x: 16px; y: 12px;
+        width: parent.width - 128px;
+        text: root.setting-name;
+        color: Tokens.text-main;
+        font-family: Tokens.font-sans-bold;
+        font-size: Tokens.panel-font-md;
+        font-weight: 700;
+    }
+    Text {
+        x: 16px; y: 42px;
+        width: parent.width - 32px;
+        text: root.hint1;
+        color: Tokens.text-muted;
+        font-family: Tokens.font-sans;
+        font-size: Tokens.panel-font-min;
+        overflow: elide;
+    }
+    if root.hint2 != "" : Text {
+        x: 16px; y: 63px;
+        width: parent.width - 32px;
+        text: root.hint2;
+        color: Tokens.text-muted;
+        font-family: Tokens.font-sans;
+        font-size: Tokens.panel-font-min;
+        overflow: elide;
+    }
+    if root.hint3 != "" : Text {
+        x: 16px; y: 84px;
+        width: parent.width - 32px;
+        text: root.hint3;
+        color: Tokens.text-muted;
+        font-family: Tokens.font-sans;
+        font-size: Tokens.panel-font-min;
+        overflow: elide;
+    }
+
+    PillToggle {
+        x: parent.width - 16px - 92px;
+        y: 8px;
+        checked: root.checked;
+        toggled => { root.toggled(!root.checked); }
+    }
+}
+
+component DiagKeyRow inherits Rectangle {
+    in property <VaultKeyItem> key-item;
+    in property <[image]> browser-logos;
+    in property <bool> busy: false;
+    callback test-clicked(id: string);
+
+    property <string> active-tone: root.key-item.diag-text != "" ? root.key-item.diag-tone : root.key-item.tone;
+    property <string> active-label: root.key-item.diag-text != "" ? root.key-item.diag-text : root.key-item.status-text;
+
+    height: 44px;
+    background: active-tone == "red" ? #EF444418
+        : active-tone == "amber" ? #FFD16614
+        : active-tone == "cyan" ? #3CE8FF12
+        : #22C55E14;
+    border-width: 1px;
+    border-color: active-tone == "red" ? #EF44444D
+        : active-tone == "amber" ? #FFD1664D
+        : active-tone == "cyan" ? #3CE8FF40
+        : #22C55E40;
+    border-radius: 7px;
+
+    KeySlotPrefix {
+        x: 8px; y: 9px;
+        badge: root.key-item.badge;
+        source: root.key-item.source;
+        is-primary: root.key-item.is-primary;
+        browser-logos: root.browser-logos;
+    }
+
+    Text {
+        x: 92px; y: 0;
+        width: parent.width - 92px - 262px;
+        height: 44px;
+        text: root.key-item.email != "" ? root.key-item.email : root.key-item.id;
+        color: active-tone == "red" ? #FCA5A5
+            : active-tone == "amber" ? #FDE68A
+            : Tokens.text-main;
+        font-family: Tokens.font-mono-bold;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    Rectangle {
+        x: parent.width - 254px; y: 9px;
+        width: 166px; height: 26px;
+        background: active-tone == "red" ? #EF444424
+            : active-tone == "amber" ? #FFD16620
+            : active-tone == "cyan" ? #3CE8FF1A
+            : #22C55E20;
+        border-width: 1px;
+        border-color: active-tone == "red" ? #EF444459
+            : active-tone == "amber" ? #FFD16659
+            : active-tone == "cyan" ? #3CE8FF4D
+            : #22C55E4D;
+        border-radius: 13px;
+
+        Text {
+            x: 8px; y: 0;
+            width: parent.width - 16px; height: parent.height;
+            text: active-label;
+            color: active-tone == "red" ? #FCA5A5
+                : active-tone == "amber" ? Tokens.polestar-gold
+                : active-tone == "cyan" ? Tokens.halo-cyan
+                : Tokens.sync-emerald;
+            font-family: Tokens.font-mono-bold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    Rectangle {
+        x: parent.width - 80px; y: 6px;
+        width: 72px; height: 32px;
+        background: #3CE8FF14;
+        border-width: 1px;
+        border-color: #3CE8FF4D;
+        border-radius: 6px;
+        opacity: root.busy ? 0.55 : 1.0;
+
+        Icon {
+            x: 12px; y: 9px;
+            size: 13px;
+            name: "bolt";
+            tint: Tokens.halo-cyan;
+        }
+        Text {
+            x: 31px; y: 0;
+            width: 34px; height: 32px;
+            text: "Uji";
+            color: Tokens.halo-cyan;
+            font-family: Tokens.font-sans-semibold;
+            font-size: Tokens.panel-font-min;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+        TouchArea {
+            enabled: !root.busy;
+            mouse-cursor: pointer;
+            clicked => { root.test-clicked(root.key-item.id); }
+        }
+    }
+}
+
+// ===========================================================================
+//  MODEL 1 — CONTROL PANEL
+//  1:1 port of the "activeModel === 'control_panel'" branch of
+//  src/routes/+page.svelte (lines 1845-2680)
+//  Window size 900x650  (matches cmd_set_window_mode in src-tauri/src/lib.rs)
+// ===========================================================================
+
+export component MainPanel inherits Window {
+    title: "Mini Assistant";
+    icon: @image-url("../assets/app-icon.png");
+    width: 1060px;
+    height: 720px;
+    background: Tokens.bg-void;
+    no-frame: true;
+    default-font-family: Tokens.font-sans;
+    default-font-size: Tokens.panel-font-min;
+
+    // --- state ---
+    in property <int> active-tab: 0;          // 0 providers 1 browser 2 topics 3 diagnostics 4 settings
+    in property <bool> hud-mode: false;
+    in property <bool> panel-visible: false;
+    in property <bool> pinned: false;
+    in-out property <bool> close-modal-open: false;
+
+    // --- data (fed from Rust) ---
+    in property <[ProviderItem]> providers;
+    in property <[image]> provider-logos;
+    in property <[BrowserItem]> browsers;
+    in property <[image]> browser-logos;
+    in property <[TopicItem]> topics;
+    in property <[TopicCategory]> topic-categories;
+    in-out property <string> topic-query: "";
+    in property <image> avatar;
+    // 4x browser-exact 36px sprite with its inner shadow, used by the panel's
+    // two small avatars (the HUD keeps the 96px sprite).
+    in property <image> avatar-hi;
+    // Same 4x sprite with the brand box's outer cyan drop-shadow baked in.
+    in property <image> avatar-hi-brand;
+
+    in property <string> ram-str: "0.0 MB";
+    in property <string> cpu-str: "0.00%";
+    in property <string> active-browser: "Chrome";
+    in property <image> active-browser-logo;
+    in property <string> active-provider: "DeepSeek";
+    in property <string> provider-count: "0 DARI 1 AKTIF";
+    // "AKTIF: <browser> · UTAMA: <provider>" badge above the profile card.
+    in property <string> vault-badge: "";
+    in property <string> detected-window: "";
+    in property <string> detected-category: "";
+    in property <string> status-text: "";
+    in property <bool> status-visible: false;
+
+    // --- callbacks ---
+    callback tab-selected(index: int);
+    callback provider-moved(index: int, delta: int);
+    callback provider-toggled(index: int);
+    callback browser-selected(index: int);
+    callback topic-selected(name: string);
+    callback topic-delete(name: string);
+    callback topic-new;
+    callback topic-filter(category: string);
+    callback topic-search(text: string);
+    callback diag-test(provider: string);
+    callback diag-test-all;
+    callback diag-extract;
+    callback diag-test-key(id: string);
+    callback diag-test-all-keys;
+    callback setting-toggled(key: string, value: bool);
+    callback clear-history;
+    callback hotkey-picked(kind: string, value: string);
+    callback hotkey-apply;
+    callback hotkey-reset;
+    callback trans-hotkey-picked(kind: string, value: string);
+    callback trans-hotkey-apply;
+    callback trans-hotkey-reset;
+    callback translate-lang-selected(lang: string);
+    // Empty prompt = reset to the built-in default.
+    callback translate-prompt-saved(prompt: string);
+    callback font-size-picked(px: int);
+    callback font-family-picked(name: string);
+    callback sing-volume-picked(pct: int);
+    callback sing-test-toggled;
+    callback request-hud;
+    callback request-bubble;
+    callback minimize-requested;
+    callback close-requested;
+    callback close-panel-to-hud;
+    callback close-system;
+    callback drag-request;
+    callback settings-saved;
+    // Cookies vault: fetch from the browser, or paste a token by hand.
+    callback vault-fetch;
+    callback vault-fetch-all;
+    callback vault-save(provider: string, token: string);
+    callback vault-promote-key(id: string);
+    callback vault-remove-key(id: string);
+    callback open-external(url: string);
+    in property <string> vault-status: "";
+    in property <bool> vault-ok: false;
+    in property <bool> vault-busy: false;
+    in property <int> deepseek-connect-count: 0;
+    in property <string> deepseek-accounts-text: "";
+    in property <[VaultKeyItem]> deepseek-keys: [];
+
+    // Diagnostics: last measured round-trip plus the terminal line.
+    // Settings page: mirrors the HUD's live flags, persisted in SQLite.
+    in property <bool> set-pin: true;
+    in property <bool> set-auto-capture: false;
+    in property <bool> set-capture-app: false;
+    in property <bool> set-target-window: true;
+    in property <bool> set-enter-sends: true;
+    in property <bool> set-send-close: false;
+    in property <bool> set-random-singing: true;
+    in property <bool> set-sing-ram-guard: true;
+    in property <int> sing-volume: 85;
+    in property <bool> sing-previewing: false;
+    in property <int> sing-track-count: 1;
+    in property <int> sing-ram-pct: 0;
+    in-out property <string> translate-prompt: "";
+    in property <int> font-size-px: 14;
+    in property <string> font-family-sel: "Segoe UI";
+
+    // Hotkey: draft values in the two fields, active values registered in Win32.
+    in property <string> hk-mod: "Alt";
+    in property <string> hk-key: "Q";
+    in property <string> hk-active-mod: "Alt";
+    in property <string> hk-active-key: "Q";
+    in-out property <string> trans-hk-mod: "Alt";
+    in-out property <string> trans-hk-key: "T";
+    in-out property <string> trans-hk-active-mod: "Alt";
+    in-out property <string> trans-hk-active-key: "T";
+    in-out property <string> translate-lang: "Indonesia";
+    in property <[string]> translate-langs: ["Indonesia", "English", "Jepang", "Mandarin", "Korea", "Arab", "Spanyol", "Prancis", "Jerman"];
+    in-out property <int> hk-menu: 0;   // 0 closed, 1 mod, 2 key, 3 trans-mod, 4 trans-key, 5 trans-lang
+
+    in property <string> diag-status: "Menunggu pengujian...";
+    in property <bool> diag-busy: false;
+    in property <bool> diag-ok: false;
+    in property <string> diag-latency: "-";
+    property <length> diag-keys-h: root.deepseek-keys.length > 0 ? (38px + root.deepseek-keys.length * 52px) : 0px;
+
+    // .desktop-app.mode-control-panel background-image
+    Image {
+        x: 0; y: 0;
+        width: parent.width;
+        height: parent.height;
+        image-fit: fill;
+        source: @image-url("../assets/panel/bg_glow.png");
+    }
+
+    // =====================================================================
+    //  TOP BAR  (.app-topbar, 46px)
+    // =====================================================================
+    Rectangle {
+        x: 0; y: 0;
+        width: parent.width;
+        height: Tokens.topbar-height;
+        background: Tokens.grad-topbar;
+    }
+    Rectangle {
+        x: 0; y: Tokens.topbar-height - 1px;
+        width: parent.width;
+        height: 1px;
+        background: Tokens.border-subtle;
+    }
+
+    // --- brand (.topbar-brand) ---
+    // Full-topbar drag handle. Declared first so the interactive controls
+    // declared below stay on top and keep receiving their own clicks.
+    TouchArea {
+        x: 0; y: 0;
+        width: parent.width;
+        height: Tokens.topbar-height;
+        mouse-cursor: grab;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.drag-request();
+            }
+        }
+    }
+    AemeathAvatar {
+        x: 14px; y: 8px;
+        size: 36px;
+        sprite: root.avatar;
+        sprite-hi: root.avatar-hi-brand;
+        hi-res: true;
+        glow: false;
+    }
+    Icon {
+        x: 60px; y: 19px;
+        size: 13px;
+        tint: Tokens.text-main;
+        name: "spark";
+    }
+    Text {
+        x: 78px; y: 0;
+        height: Tokens.topbar-height;
+        text: "MINI ASSISTANT";
+        color: Tokens.text-main;
+        font-family: Tokens.font-display;
+        font-size: Tokens.panel-font-md;
+        font-weight: 700;
+        letter-spacing: 0.75px;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 214px; y: 0;
+        height: Tokens.topbar-height;
+        text: "// AEMEATH";
+        color: Tokens.aemeath-pink;
+        font-family: Tokens.font-display;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.55px;
+        vertical-alignment: center;
+    }
+
+    // --- central mode switcher (.mode-switcher) ---
+    Rectangle {
+        x: 344px; y: 8px;
+        width: 344px;
+        height: 36px;
+        background: #0E1422D9;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        border-radius: 8px;
+    }
+    // active pill = grad-aemeath + 6px bottom-right clip + pink glow
+    Rectangle {
+        x: 348px; y: 12px;
+        width: 174px;
+        height: 28px;
+        background: Tokens.grad-aemeath;
+        border-radius: 6px;
+        drop-shadow-blur: 18px;
+        drop-shadow-color: #FF8FB16B;
+        Path {
+            x: parent.width - 6px; y: parent.height - 6px;
+            width: 6px; height: 6px;
+            fill: #0E1422;
+            commands: "M 0 6 L 6 0 L 6 6 Z";
+        }
+    }
+    TouchArea {
+        x: 348px; y: 12px;
+        width: 174px; height: 28px;
+        mouse-cursor: pointer;
+        clicked => { root.tab-selected(0); }
+    }
+    TouchArea {
+        x: 525px; y: 12px;
+        width: 159px; height: 28px;
+        mouse-cursor: pointer;
+        clicked => { root.request-hud(); }
+    }
+    Icon {
+        x: 360px; y: 19px;
+        size: 14px; name: "spark";
+        tint: #070A12;
+    }
+    Text {
+        x: 380px; y: 12px;
+        height: 28px;
+        text: "CONTROL PANEL";
+        color: #070A12;
+        font-family: Tokens.font-display;
+        font-size: Tokens.panel-font-min;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        vertical-alignment: center;
+    }
+    Icon {
+        x: 536px; y: 19px;
+        size: 14px; name: "halo";
+        tint: Tokens.text-muted;
+    }
+    Text {
+        x: 556px; y: 12px;
+        height: 28px;
+        text: "FLOATING HUD";
+        color: Tokens.text-muted;
+        font-family: Tokens.font-display-ui;
+        font-size: Tokens.panel-font-min;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        vertical-alignment: center;
+    }
+
+    // --- right group (.topbar-right-group) ---
+    topbar-hk-pill := Rectangle {
+        x: parent.width - 104px - self.width; y: 10px;
+        width: hk-row.preferred-width + 20px;
+        height: 32px;
+        background: #0E1422CC;
+        border-width: 1px;
+        border-color: #3CE8FF4D;
+        border-radius: 6px;
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.request-bubble(); }
+        }
+        hk-row := HorizontalLayout {
+            x: 10px; y: 4px;
+            height: 24px;
+            spacing: 5px;
+            alignment: start;
+
+            KeyCap {
+                label: root.hk-active-mod;
+            }
+            Text {
+                width: 10px; height: 24px;
+                text: "+";
+                color: Tokens.text-dim;
+                font-family: Tokens.font-mono;
+                font-size: Tokens.panel-font-min;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            KeyCap {
+                label: root.hk-active-key;
+            }
+        }
+    }
+
+    // window controls (.win-controls)
+    Rectangle {
+        x: parent.width - 92px; y: 10px;
+        width: 1px; height: 32px;
+        background: Tokens.border-subtle;
+    }
+    Rectangle {
+        x: parent.width - 80px; y: 10px;
+        width: 32px; height: 32px;
+        background: #1E2A44F2;
+        border-width: 1px;
+        border-color: #FFFFFF47;
+        border-radius: 6px;
+        drop-shadow-color: #3CE8FF73;
+        min-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.minimize-requested(); }
+        }
+        states [
+            hover when min-touch.has-hover : {
+                background: #3CE8FF40;
+                border-color: Tokens.halo-cyan;
+                drop-shadow-blur: 10px;
+            }
+        ]
+        Icon {
+            x: 9px; y: 9px;
+            size: 14px; name: "minimize";
+            tint: min-touch.has-hover ? Tokens.halo-cyan : #F8FAFC;
+        }
+    }
+    Rectangle {
+        x: parent.width - 42px; y: 10px;
+        width: 32px; height: 32px;
+        background: #1E2A44F2;
+        border-width: 1px;
+        border-color: #FFFFFF47;
+        border-radius: 6px;
+        drop-shadow-color: #FF477E99;
+        close-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.close-modal-open = true; }
+        }
+        states [
+            hover when close-touch.has-hover : {
+                background: Tokens.overdrive-red;
+                border-color: Tokens.overdrive-red;
+                drop-shadow-blur: 14px;
+            }
+        ]
+        Icon {
+            x: 9px; y: 9px;
+            size: 14px; name: "close";
+            tint: close-touch.has-hover ? #070A12 : #F8FAFC;
+        }
+    }
+
+    // =====================================================================
+    //  APP BODY  (.app-body)
+    // =====================================================================
+    Rectangle {
+        x: 0; y: Tokens.topbar-height;
+        width: parent.width;
+        height: parent.height - Tokens.topbar-height;
+        background: Tokens.bg-void;
+    }
+
+    // ---------------------------------------------------------------------
+    //  SIDEBAR RAIL  (.cp-sidebar, 250px)
+    // ---------------------------------------------------------------------
+    Rectangle {
+        x: 0; y: Tokens.topbar-height;
+        width: Tokens.sidebar-width;
+        height: parent.height - Tokens.topbar-height;
+        background: Tokens.grad-sidebar;
+    }
+    Rectangle {
+        x: Tokens.sidebar-width - 1px; y: Tokens.topbar-height;
+        width: 1px;
+        height: parent.height - Tokens.topbar-height;
+        background: Tokens.border-subtle;
+    }
+
+    // --- nav tabs (.cp-nav / .nav-tab) ---
+    // active: bg rgba(255,143,177,.16) border 1 #FF8FB15A  color #f5a8c2 700
+    // hover : bg rgba(60,232,255,.08)  color cyan
+    for tab[i] in 5 : Rectangle {
+        x: 12px;
+        y: Tokens.topbar-height + 16px + tab * 48px;
+        width: 256px;
+        height: 42px;
+        touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.tab-selected(tab); }
+        }
+        background: root.active-tab == tab ? #FF8FB129
+            : touch.has-hover ? #3CE8FF14 : #00000000;
+        border-width: root.active-tab == tab ? 1px : 0px;
+        border-color: root.active-tab == tab ? #FF8FB15A : #00000000;
+        border-radius: 7px;
+        drop-shadow-offset-y: 2px;
+        drop-shadow-color: #00000040;
+        drop-shadow-blur: root.active-tab == tab ? 10px : 0px;
+
+        Icon {
+            x: 14px;
+            y: 13px;
+            size: 16px;
+            name: tab == 0 ? "sparkles" : tab == 1 ? "chrome" : tab == 2 ? "book" : tab == 3 ? "cpu" : "settings";
+            tint: root.active-tab == tab ? Tokens.aemeath-soft
+                : touch.has-hover ? Tokens.halo-cyan : Tokens.text-muted;
+        }
+        Text {
+            x: 40px;
+            y: 0;
+            height: parent.height;
+            text: tab == 0 ? "Providers" : tab == 1 ? "Browser & Cookies" : tab == 2 ? "Riwayat Sesi" : tab == 3 ? "Diagnostik" : "Pengaturan";
+            color: root.active-tab == tab ? Tokens.aemeath-soft
+                : touch.has-hover ? Tokens.halo-cyan : Tokens.text-muted;
+            font-family: root.active-tab == tab ? Tokens.font-display : Tokens.font-display-ui;
+            font-size: Tokens.panel-font-md;
+            font-weight: root.active-tab == tab ? 700 : 600;
+            letter-spacing: 0.3px;
+            vertical-alignment: center;
+        }
+        // .nav-count-badge (topics count)
+        if tab == 2 && root.topics.length > 0 : Rectangle {
+            x: parent.width - 36px; y: 10px;
+            width: 26px; height: 22px;
+            background: #FF8FB126;
+            border-width: 1px;
+            border-color: #FF8FB159;
+            border-radius: 11px;
+            Text {
+                x: 0; y: 0;
+                width: 26px; height: 22px;
+                text: root.topics.length;
+                color: Tokens.aemeath-soft;
+                font-family: Tokens.font-display;
+                font-size: Tokens.panel-font-min;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // --- Aemeath companion card (.sidebar-aemeath-card.st-card) ---
+    GlassCard {
+        x: 12px;
+        y: parent.height - 208px;
+        width: 256px;
+        height: 194px;
+        fill: Tokens.grad-aemeath-card;
+        border: #3CE8FF40;
+        diamond: true;
+        diamond-right: 14px;
+        chamfer: true;
+
+        AemeathAvatar {
+            x: 13px; y: 13px;
+            size: 36px;
+            halo: true;
+            sprite: root.avatar;
+            sprite-hi: root.avatar-hi;
+            hi-res: true;
+        }
+        // .aemeath-meta
+        Text {
+            x: 61px; y: 12px;
+            text: "Aemeath";
+            color: Tokens.aemeath-pink;
+            font-family: Tokens.font-display;
+            font-size: Tokens.panel-font-card;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+        // .aemeath-tag pill
+        Rectangle {
+            x: 61px; y: 34px;
+            width: 86px; height: 22px;
+            background: #3CE8FF1A;
+            border-width: 1px;
+            border-color: #3CE8FF33;
+            border-radius: 5px;
+            Text {
+                x: 0; y: 0;
+                width: parent.width; height: parent.height;
+                text: "Digital Idol";
+                color: Tokens.halo-cyan;
+                font-family: Tokens.font-sans;
+                font-size: Tokens.panel-font-min;
+                font-weight: 500;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Equalizer {
+            x: 222px; y: 24px;
+            animated: root.panel-visible;
+        }
+        // .aemeath-dialogue bubble
+        Rectangle {
+            x: 13px; y: 66px;
+            width: 230px;
+            height: 38px;
+            background: #070A12A6;
+            border-width: 1px;
+            border-color: #3CE8FF2E;
+            border-radius: 8px;
+            HorizontalLayout {
+                x: 6px; y: 0;
+                width: parent.width - 12px;
+                height: parent.height;
+                spacing: 4px;
+                alignment: center;
+
+                Text {
+                    height: parent.height;
+                    text: "\"";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    y: 7px;
+                    width: dlg-hk-txt.preferred-width + 10px;
+                    height: 24px;
+                    background: #FFD1661F;
+                    border-width: 1px;
+                    border-color: #FFD16640;
+                    border-radius: 4px;
+                    dlg-hk-txt := Text {
+                        x: 5px; y: 0;
+                        height: 24px;
+                        text: root.hk-active-mod + "+" + root.hk-active-key;
+                        color: Tokens.polestar-gold;
+                        font-family: Tokens.font-sans-bold;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    height: parent.height;
+                    text: "buka HUD\"";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    vertical-alignment: center;
+                }
+            }
+        }
+        // stats pills (.sidebar-stats-row / .stat-pill, emerald tint)
+        Rectangle {
+            x: 13px; y: 114px;
+            width: 112px; height: 24px;
+            background: #2CE59B1A;
+            border-radius: 5px;
+            border-width: 1px;
+            border-color: #2CE59B40;
+            Text {
+                x: 0; y: 0;
+                width: parent.width; height: parent.height;
+                text: root.ram-str;
+                color: Tokens.sync-emerald;
+                font-family: Tokens.font-sans-semibold;
+                font-size: Tokens.panel-font-min;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            x: 131px; y: 114px;
+            width: 112px; height: 24px;
+            background: #2CE59B1A;
+            border-radius: 5px;
+            border-width: 1px;
+            border-color: #2CE59B40;
+            Text {
+                x: 0; y: 0;
+                width: parent.width; height: parent.height;
+                text: root.cpu-str;
+                color: Tokens.sync-emerald;
+                font-family: Tokens.font-sans-semibold;
+                font-size: Tokens.panel-font-min;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        // .btn-summon-full (st-btn-primary + spark icon)
+        PrimaryButton {
+            x: 13px; y: 147px;
+            width: 230px; height: 34px;
+            chamfer-fill: #0E1422;
+            icon: "spark";
+            icon-size: 14px;
+            label: "BUKA FLOATING HUD";
+            clicked => { root.request-hud(); }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    //  MAIN CONTENT  (.cp-main-content)
+    // ---------------------------------------------------------------------
+    scroll := ScrollView {
+        x: Tokens.sidebar-width;
+        y: Tokens.topbar-height;
+        width: parent.width - Tokens.sidebar-width;
+        height: parent.height - Tokens.topbar-height;
+        vertical-scrollbar-policy: as-needed;
+        mouse-drag-pan-enabled: true;
+        // Flickable's automatic content sizing does not reliably include the
+        // absolutely-positioned tab rectangles. Set it explicitly so tall
+        // pages (Browser & Cookies, Diagnostik, Pengaturan) can scroll.
+        content-width: self.width;
+        content-height: 24px + (root.active-tab == 0 ? 520px
+            : root.active-tab == 1 ? 1146px
+            : root.active-tab == 2 ? 244px + Math.ceil(root.topics.length / 2) * 138px
+            : root.active-tab == 3 ? (1236px + root.diag-keys-h)
+            : 2594px);
+
+        // The ScrollView viewport paints over page-level elements, so repeat
+        // the right-hand slice of the page radial glow inside the viewport.
+        Image {
+            x: 0; y: 0;
+            width: parent.width;
+            height: parent.height;
+            image-fit: fill;
+            source: @image-url("../assets/panel/bg_glow_content.png");
+        }
+
+        // ===== TAB 1: PROVIDERS =====
+        if root.active-tab == 0 : Rectangle {
+            x: 28px; y: 24px;
+            width: parent.width - 56px;
+            height: 520px;
+
+            SectionTitle {
+                x: 0; y: 0;
+                width: parent.width;
+                title: "AI PROVIDERS";
+                subtitle: "Urutan fallback dan status koneksi. Koneksi diatur di tab Browser & Cookies, tes detail di Diagnostik.";
+            }
+
+            GlassCard {
+                x: 0; y: 84px;
+                width: parent.width;
+                height: 422px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    width: parent.width - 260px;
+                    text: "Urutan Fallback & Status";
+                    color: Tokens.halo-cyan;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                    letter-spacing: 0.35px;
+                }
+                Text {
+                    x: 20px; y: 52px;
+                    width: parent.width - 40px;
+                    height: 44px;
+                    text: "Baris teratas adalah provider utama. Status diperbarui dari hasil koneksi terakhir.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    line-height-factor: 1.25;
+                    wrap: word-wrap;
+                }
+                BadgeTag {
+                    x: parent.width - 20px - self.width;
+                    y: 16px;
+                    label: root.provider-count;
+                    tone: Tokens.sync-emerald;
+                    fill: #00E6991A;
+                    border: #00E6994D;
+                }
+
+                // subhead (.priority-subhead)
+                Text {
+                    x: 20px; y: 112px;
+                    text: "Model Aktif (Urutan Fallback)";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-sans-bold;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 113px;
+                    width: parent.width - 40px;
+                    text: "Panah untuk atur prioritas, toggle untuk nonaktif";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    horizontal-alignment: right;
+                }
+                Rectangle {
+                    x: 20px; y: 142px;
+                    width: parent.width - 40px;
+                    height: 1px;
+                    background: #FFFFFF14;
+                }
+
+                // provider rows (.priority-row)
+                for p[idx] in root.providers : Rectangle {
+                    x: 20px;
+                    y: 154px + idx * 84px;
+                    width: parent.width - 40px;
+                    height: 74px;
+                    background: #0E1422BF;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    border-radius: 8px;
+                    provider-touch := TouchArea {
+                    }
+                    states [
+                        hover when provider-touch.has-hover : {
+                            border-color: Tokens.border-pink;
+                        }
+                    ]
+
+                    // order badge (.order-badge)
+                    Text {
+                        x: 14px; y: 0;
+                        width: 34px; height: parent.height;
+                        text: p.enabled ? "#" + (idx + 1) : "OFF";
+                        color: p.enabled ? Tokens.polestar-gold : Tokens.text-muted;
+                        font-family: Tokens.font-mono-bold;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+
+                    // brand avatar (.ai-brand-avatar)
+                    Rectangle {
+                        x: 56px; y: 19px;
+                        width: 36px; height: 36px;
+                        background: #070A12;
+                        border-width: 1px;
+                        border-color: Tokens.border-subtle;
+                        border-radius: 8px;
+                        opacity: p.enabled ? 1 : 0.5;
+                        Image {
+                            x: 6px; y: 6px;
+                            width: 24px; height: 24px;
+                            source: p.logo-index < root.provider-logos.length
+                                ? root.provider-logos[p.logo-index]
+                                : root.provider-logos[0];
+                            image-fit: contain;
+                        }
+                    }
+
+                    // meta (.provider-meta)
+                    Text {
+                        x: 104px; y: 11px;
+                        width: parent.width - 310px;
+                        text: p.name;
+                        color: p.enabled ? Tokens.text-main : Tokens.text-muted;
+                        font-family: Tokens.font-sans-bold;
+                        font-size: Tokens.panel-font-card;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        x: 104px; y: 37px;
+                        height: 26px;
+                        spacing: 10px;
+                        alignment: start;
+
+                        Text {
+                            height: 26px;
+                            text: idx == 0 ? "Utama" : "Cadangan #" + idx;
+                            color: idx == 0 ? Tokens.halo-cyan : Tokens.text-muted;
+                            font-family: idx == 0 ? Tokens.font-sans-bold : Tokens.font-sans;
+                            font-size: Tokens.panel-font-min;
+                            font-weight: idx == 0 ? 700 : 500;
+                            vertical-alignment: center;
+                        }
+                        StatusPill {
+                            label: p.status;
+                            dot-color: #64748B;
+                            text-color: Tokens.text-muted;
+                        }
+                    }
+
+                    // toggle (.btn-provider-toggle pill)
+                    PillToggle {
+                        x: parent.width - 186px; y: 21px;
+                        checked: p.enabled;
+                        toggled => { root.provider-toggled(idx); }
+                    }
+
+                    // up / down arrows
+                    if p.enabled : Rectangle {
+                        x: parent.width - 80px; y: 21px;
+                        width: 32px; height: 32px;
+                        background: #0E1422CC;
+                        border-width: 1px;
+                        border-color: Tokens.border-subtle;
+                        border-radius: 6px;
+                        opacity: idx > 0 ? 1 : 0.3;
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if (idx > 0) { root.provider-moved(idx, -1); }
+                            }
+                        }
+                        Icon {
+                            x: 9px; y: 9px;
+                            size: 14px; name: "arrow-up";
+                            tint: Tokens.text-muted;
+                        }
+                    }
+                    if p.enabled : Rectangle {
+                        x: parent.width - 42px; y: 21px;
+                        width: 32px; height: 32px;
+                        background: #0E1422CC;
+                        border-width: 1px;
+                        border-color: Tokens.border-subtle;
+                        border-radius: 6px;
+                        opacity: idx < root.providers.length - 1 ? 1 : 0.3;
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if (idx < root.providers.length - 1) {
+                                    root.provider-moved(idx, 1);
+                                }
+                            }
+                        }
+                        Icon {
+                            x: 9px; y: 9px;
+                            size: 14px; name: "arrow-down";
+                            tint: Tokens.text-muted;
+                        }
+                    }
+                }
+
+                // .card-footer-action border-top + save button
+                Rectangle {
+                    x: 20px; y: 342px;
+                    width: parent.width - 40px;
+                    height: 1px;
+                    background: Tokens.border-subtle;
+                }
+                PrimaryButton {
+                    x: 20px; y: 360px;
+                    width: 268px; height: 38px;
+                    chamfer-fill: #101627;
+                    icon: "check";
+                    icon-size: 15px;
+                    label: "SIMPAN URUTAN PROVIDER";
+                    clicked => { root.settings-saved(); }
+                }
+            }
+        }
+
+        // ===== TAB 2: BROWSER & COOKIES =====
+        if root.active-tab == 1 : Rectangle {
+            x: 28px; y: 24px;
+            width: parent.width - 56px;
+            height: 84px + browser-profile-card.height + 16px + vault-card.height + 24px;
+
+            SectionTitle {
+                x: 0; y: 0;
+                width: parent.width;
+                title: "BROWSER & COOKIES";
+                subtitle: "Pilih browser Chrome atau Edge untuk ekstrak sesi. Key cadangan otomatis dipakai saat limit atau error.";
+            }
+
+            browser-profile-card := GlassCard {
+                x: 0; y: 84px;
+                width: parent.width;
+                height: root.browsers.length > 0
+                    ? (70px + Math.ceil(root.browsers.length / 2) * 150px)
+                    : 120px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Pilih Profil Browser";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                MonoBadge {
+                    x: parent.width - 20px - self.width; y: 16px;
+                    label: root.vault-badge;
+                }
+
+                // Multi-browser selectable cards (Chrome, Edge, ...)
+                for b[idx] in root.browsers : Rectangle {
+                    property <length> card-w: (parent.width - 40px - 14px) / 2;
+                    x: 20px + Math.mod(idx, 2) * (self.card-w + 14px);
+                    y: 56px + Math.floor(idx / 2) * 150px;
+                    width: self.card-w;
+                    height: 138px;
+                    background: b.selected
+                        ? @linear-gradient(135deg, #FF8FB11F, #3CE8FF0F)
+                        : b-touch.has-hover ? #FFFFFF0F : #FFFFFF08;
+                    border-width: 1px;
+                    border-color: b.selected ? Tokens.aemeath-pink : Tokens.border-subtle;
+                    border-radius: 12px;
+
+                    b-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.browser-selected(idx); }
+                    }
+
+                    Image {
+                        x: 16px; y: 20px;
+                        width: 38px; height: 38px;
+                        source: root.browser-logos[
+                            b.logo-key == "edge" ? 1
+                            : b.logo-key == "brave" ? 2
+                            : b.logo-key == "firefox" ? 3 : 0
+                        ];
+                        image-fit: contain;
+                    }
+                    Text {
+                        x: 64px; y: 14px;
+                        width: parent.width - 154px;
+                        text: b.name;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-sans-bold;
+                        font-size: Tokens.panel-font-card;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: 64px; y: 38px;
+                        width: parent.width - 154px; height: 42px;
+                        text: b.profile;
+                        color: Tokens.text-muted;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        wrap: word-wrap;
+                    }
+                    Rectangle {
+                        x: parent.width - 84px; y: 18px;
+                        width: 70px; height: 26px;
+                        background: b.selected ? #FF8FB133 : #FFFFFF0D;
+                        border-width: 1px;
+                        border-color: b.selected ? Tokens.aemeath-pink : Tokens.border-subtle;
+                        border-radius: 13px;
+
+                        if b.selected : Icon {
+                            x: 9px; y: 7px;
+                            size: 12px;
+                            name: "check";
+                            tint: Tokens.aemeath-soft;
+                        }
+                        Text {
+                            x: b.selected ? 25px : 0px;
+                            y: 0;
+                            width: b.selected ? 40px : parent.width;
+                            height: 26px;
+                            text: b.selected ? "Aktif" : "Pilih";
+                            color: b.selected ? Tokens.aemeath-soft : Tokens.text-muted;
+                            font-family: Tokens.font-sans-bold;
+                            font-size: Tokens.panel-font-min;
+                            font-weight: 700;
+                            horizontal-alignment: b.selected ? left : center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Rectangle {
+                        x: 16px; y: 90px;
+                        width: parent.width - 32px; height: 1px;
+                        background: Tokens.border-subtle;
+                    }
+                    Rectangle {
+                        x: 16px; y: 109px;
+                        width: 7px; height: 7px;
+                        border-radius: 4px;
+                        background: #22C55E;
+                    }
+                    Text {
+                        x: 30px; y: 102px;
+                        text: "SQLite lokal siap";
+                        color: Tokens.sync-emerald;
+                        font-family: Tokens.font-sans-semibold;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 600;
+                    }
+                }
+
+                if root.browsers.length == 0 : Text {
+                    x: 20px; y: 68px;
+                    width: parent.width - 40px;
+                    text: "Tidak ada profil browser terdeteksi. Pasang Google Chrome atau Microsoft Edge untuk mengambil sesi.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    wrap: word-wrap;
+                }
+            }
+
+            vault-card := GlassCard {
+                x: 0; y: 84px + browser-profile-card.height + 16px;
+                width: parent.width;
+                height: 248px + ds-vault.height + 24px;
+                fill: #0E1422BF;
+                border: #3CE8FF59;
+                diamond: true;
+                chamfer: true;
+                clip: false;
+
+                Icon {
+                    x: 20px; y: 24px;
+                    size: 15px;
+                    name: "key";
+                    tint: Tokens.halo-cyan;
+                }
+                Text {
+                    x: 43px; y: 20px;
+                    text: "Cookies Vault";
+                    color: Tokens.halo-cyan;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 54px;
+                    width: parent.width - 40px;
+                    text: "Token tersensor otomatis. Key 1 dipakai utama; Key 2 (Chrome/Edge) menjadi fallback otomatis saat limit/error.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    wrap: word-wrap;
+                }
+                MonoBadge {
+                    x: parent.width - 20px - self.width; y: 18px;
+                    label: "100% KEYLESS";
+                    tone: Tokens.polestar-gold;
+                    fill: #FFD1661A;
+                    border: #FFD1664D;
+                }
+
+                // Primary fetch button ("Ambil Sesi dari <Browser Dipilih>")
+                PrimaryButton {
+                    x: 20px; y: 108px;
+                    width: root.browsers.length > 1
+                        ? ((parent.width - 40px - 12px) * 0.56)
+                        : (parent.width - 40px);
+                    height: 46px;
+                    chamfer-fill: #0C121E;
+                    icon: "bolt";
+                    icon-size: 15px;
+                    font-size: Tokens.panel-font-md;
+                    label: root.vault-busy ? "Mengambil sesi dari browser..."
+                        : root.browsers.length > 0 ? "Ambil Sesi dari " + root.active-browser
+                        : "Tidak ada browser terdeteksi";
+                    enabled: !root.vault-busy && root.browsers.length > 0;
+                    clicked => { root.vault-fetch(); }
+                }
+
+                // Secondary 1-click button to fetch all detected browsers ("tombol biasa")
+                if root.browsers.length > 1 : HoloButton {
+                    x: 20px + ((parent.width - 40px - 12px) * 0.56) + 12px;
+                    y: 108px;
+                    width: (parent.width - 40px - 12px) * 0.44;
+                    height: 46px;
+                    icon: "layers";
+                    icon-size: 15px;
+                    label: root.vault-busy ? "Memproses..." : "Ambil Semua (" + root.browsers.length + " Browser)";
+                    enabled: !root.vault-busy;
+                    clicked => { root.vault-fetch-all(); }
+                }
+
+                Rectangle {
+                    x: 20px; y: 168px;
+                    width: parent.width - 40px; height: 62px;
+                    background: #080C16D9;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    border-radius: 8px;
+
+                    Rectangle {
+                        x: 16px; y: 13px;
+                        width: parent.width - 32px; height: 6px;
+                        background: #FFFFFF14;
+                        border-radius: 3px;
+                        Rectangle {
+                            width: root.vault-ok ? parent.width : (root.vault-busy ? parent.width / 2 : 0px);
+                            height: parent.height;
+                            background: @linear-gradient(90deg, #3CE8FF, #22C55E);
+                            border-radius: 3px;
+                        }
+                    }
+                    Text {
+                        x: 16px; y: 27px;
+                        width: parent.width - 88px; height: 22px;
+                        text: root.vault-status == "" ? "Siap: ambil otomatis dari Chrome/Edge, atau tempel token manual di bawah." : root.vault-status;
+                        color: root.vault-ok ? Tokens.sync-emerald
+                            : root.vault-status == "" ? Tokens.text-muted : #FCA5A5;
+                        font-family: Tokens.font-mono;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: parent.width - 66px; y: 27px;
+                        width: 50px; height: 22px;
+                        text: root.vault-ok ? "SIAP" : (root.vault-busy ? "…" : "—");
+                        color: Tokens.halo-cyan;
+                        font-family: Tokens.font-mono-bold;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                }
+
+                ds-vault := VaultItem {
+                    x: 20px; y: 248px;
+                    width: parent.width - 40px;
+                    logo: root.provider-logos[4];
+                    browser-logos: root.browser-logos;
+                    keys: root.deepseek-keys;
+                    provider-name: "DeepSeek";
+                    token-kind: "userToken";
+                    placeholder: "Tempel userToken (eyJhbGci...)";
+                    link-text: "chat.deepseek.com";
+                    link-width: 124px;
+                    hint-suffix: " · F12 > Application > Local Storage > userToken";
+                    hint-line2: "Ambil otomatis dari Chrome/Edge atau simpan manual token di atas.";
+                    status: root.deepseek-connect-count + " Connect";
+                    connected: root.deepseek-connect-count > 0;
+                    accounts-info: root.deepseek-accounts-text;
+                    link-url: "https://chat.deepseek.com/sign_in";
+                    save-token(token) => { root.vault-save("DeepSeek", token); }
+                    fetch-requested => { root.vault-fetch(); }
+                    open-link(url) => { root.open-external(url); }
+                    promote-key(id) => { root.vault-promote-key(id); }
+                    remove-key(id) => { root.vault-remove-key(id); }
+                }
+            }
+        }
+
+        // ===== TAB 3: RIWAYAT SESI =====
+        if root.active-tab == 2 : Rectangle {
+            x: 28px; y: 24px;
+            width: parent.width - 56px;
+            height: 244px + Math.ceil(root.topics.length / 2) * 138px;
+
+            SectionTitle {
+                x: 0; y: 0;
+                width: parent.width - 170px;
+                title: "RIWAYAT SESI";
+                subtitle: "Tersimpan lokal di perangkat Anda. Klik kartu untuk membuka.";
+            }
+
+            // New session
+            PrimaryButton {
+                x: parent.width - 156px; y: 6px;
+                width: 156px; height: 38px;
+                chamfer-fill: Tokens.bg-void;
+                icon: "sparkles";
+                icon-size: 14px;
+                label: "Sesi Baru";
+                clicked => { root.topic-new(); }
+            }
+
+            // Search + category filter
+            GlassCard {
+                x: 0; y: 84px;
+                width: parent.width;
+                height: 128px;
+                diamond: true;
+                chamfer: true;
+
+                Rectangle {
+                    x: 20px; y: 18px;
+                    width: parent.width - 40px; height: 40px;
+                    background: #070A12B3;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    border-radius: 8px;
+
+                    Icon {
+                        x: 13px; y: 12px;
+                        size: 15px;
+                        name: "search";
+                        tint: Tokens.text-muted;
+                    }
+                    if root.topic-query == "" : Text {
+                        x: 38px; y: 0;
+                        width: parent.width - 50px; height: 40px;
+                        text: "Cari sesi atau kategori...";
+                        color: Tokens.text-dim;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    TextInput {
+                        x: 38px; y: 1px;
+                        width: parent.width - 50px; height: 38px;
+                        text <=> root.topic-query;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                        edited => { root.topic-search(root.topic-query); }
+                    }
+                }
+
+                HorizontalLayout {
+                    x: 20px; y: 72px;
+                    width: parent.width - 40px;
+                    height: 34px;
+                    spacing: 8px;
+                    alignment: start;
+
+                    for cat[i] in root.topic-categories : Rectangle {
+                        width: cat-name.preferred-width + cat-num.preferred-width + 38px;
+                        height: 34px;
+                        background: cat.active ? #3CE8FF24 : #FFFFFF0D;
+                        border-width: 1px;
+                        border-color: cat.active ? Tokens.halo-cyan : Tokens.border-subtle;
+                        border-radius: 17px;
+
+                        cat-name := Text {
+                            x: 13px; y: 0;
+                            height: 34px;
+                            text: cat.name;
+                            color: cat.active ? #FFFFFF : Tokens.text-muted;
+                            font-family: Tokens.font-sans;
+                            font-size: Tokens.panel-font-min;
+                            vertical-alignment: center;
+                        }
+                        cat-num := Text {
+                            x: 21px + cat-name.preferred-width; y: 0;
+                            height: 34px;
+                            text: cat.count;
+                            color: cat.active ? Tokens.halo-cyan : Tokens.text-dim;
+                            font-family: Tokens.font-mono;
+                            font-size: Tokens.panel-font-min;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.topic-filter(cat.name); }
+                        }
+                    }
+                }
+            }
+
+            if root.topics.length == 0 : Text {
+                x: 20px; y: 234px;
+                width: parent.width - 40px;
+                text: "Belum ada sesi. Mulai percakapan baru untuk menyimpannya di sini.";
+                color: Tokens.text-muted;
+                font-family: Tokens.font-sans;
+                font-size: Tokens.panel-font-min;
+                horizontal-alignment: center;
+            }
+
+            // Session grid (responsive 2-column card width inside parent.width)
+            for f[i] in root.topics : Rectangle {
+                property <length> card-w: (parent.width - 16px) / 2;
+                x: Math.mod(i, 2) * (self.card-w + 16px);
+                y: 228px + Math.floor(i / 2) * 138px;
+                width: self.card-w;
+                height: 126px;
+                background: #0A0F1CCC;
+                border-width: 1px;
+                border-color: f.active ? #3CE8FF66 : Tokens.border-subtle;
+                border-radius: 10px;
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.topic-selected(f.name); }
+                }
+
+                Rectangle {
+                    x: 14px; y: 14px;
+                    width: 38px; height: 38px;
+                    background: @linear-gradient(135deg, #3CE8FF, #FF8FB1);
+                    border-radius: 9px;
+
+                    Text {
+                        width: parent.width; height: parent.height;
+                        text: f.initial;
+                        color: #070A12;
+                        font-family: Tokens.font-sans-bold;
+                        font-size: Tokens.panel-font-card;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    x: 62px; y: 12px;
+                    width: parent.width - 76px; height: 22px;
+                    text: f.name;
+                    overflow: elide;
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-sans-bold;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Text {
+                    x: 62px; y: 35px;
+                    width: parent.width - 76px; height: 20px;
+                    text: f.when;
+                    overflow: elide;
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    x: 14px; y: 62px;
+                    width: f-cat.preferred-width + 20px;
+                    height: 24px;
+                    background: #3CE8FF1A;
+                    border-width: 1px;
+                    border-color: #3CE8FF40;
+                    border-radius: 12px;
+
+                    f-cat := Text {
+                        x: 10px; y: 0;
+                        height: 24px;
+                        text: f.category;
+                        color: Tokens.halo-cyan;
+                        font-family: Tokens.font-sans-bold;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    x: 14px; y: 92px;
+                    width: parent.width - 96px; height: 22px;
+                    text: f.count;
+                    color: Tokens.text-dim;
+                    font-family: Tokens.font-mono;
+                    font-size: Tokens.panel-font-min;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                Rectangle {
+                    x: parent.width - 78px; y: 84px;
+                    width: 30px; height: 30px;
+                    background: #3CE8FF1F;
+                    border-width: 1px;
+                    border-color: #3CE8FF4D;
+                    border-radius: 7px;
+
+                    Icon {
+                        x: 8px; y: 8px;
+                        size: 14px;
+                        name: "external-link";
+                        tint: #FFFFFF;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.topic-selected(f.name); }
+                    }
+                }
+                Rectangle {
+                    x: parent.width - 42px; y: 84px;
+                    width: 30px; height: 30px;
+                    background: #FF477E14;
+                    border-width: 1px;
+                    border-color: #FF477E4D;
+                    border-radius: 7px;
+
+                    Icon {
+                        x: 8px; y: 8px;
+                        size: 14px;
+                        name: "trash";
+                        tint: Tokens.overdrive-red;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.topic-delete(f.name); }
+                    }
+                }
+            }
+        }
+
+
+        // ===== TAB 4: DIAGNOSTIK =====
+        if root.active-tab == 3 : Rectangle {
+            x: 28px; y: 24px;
+            width: parent.width - 56px;
+            height: 1236px + root.diag-keys-h;
+
+            SectionTitle {
+                x: 0; y: 0;
+                width: parent.width;
+                title: "DIAGNOSTIK SISTEM";
+                subtitle: "Metrik performa dan tes koneksi WebAI + ekstraksi cookie.";
+            }
+
+            // ---- .metrics-grid ----
+            for metricc[k] in [ 0, 1, 2, 3 ] : Rectangle {
+                property <length> col-w: (parent.width - 16px) / 2;
+                x: Math.mod(k, 2) * (self.col-w + 16px);
+                y: 84px + (k < 2 ? 0px : 130px);
+                width: self.col-w;
+                height: k < 2 ? 116px : 158px;
+                background: Tokens.surface-glass;
+                border-width: 1px;
+                border-color: #3CE8FF2E;
+                border-radius: 10px;
+                clip: true;
+
+                Text {
+                    x: 18px; y: 16px;
+                    text: k == 0 ? "Penggunaan RAM"
+                        : k == 1 ? "Penggunaan CPU"
+                        : k == 2 ? "Latensi API"
+                        : "Penyimpanan";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+                if (k == 0 && root.ram-str != "—") || (k == 1 && root.cpu-str != "—") : Rectangle {
+                    x: parent.width - 26px; y: 20px;
+                    width: 10px; height: 10px;
+                    border-radius: 5px;
+                    background: Tokens.sync-emerald;
+                    drop-shadow-blur: 8px;
+                    drop-shadow-color: Tokens.sync-emerald;
+                }
+                Text {
+                    x: 18px; y: 40px;
+                    width: parent.width - 36px;
+                    height: 36px;
+                    text: k == 0 ? root.ram-str
+                        : k == 1 ? root.cpu-str
+                        : k == 2 ? root.diag-latency
+                        : "100% Local";
+                    color: k == 0 || k == 1 ? Tokens.sync-emerald : k == 2 ? Tokens.halo-cyan : Tokens.text-main;
+                    font-family: Tokens.font-mono-bold;
+                    font-size: Tokens.panel-font-metric;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Text {
+                    x: 18px; y: 80px;
+                    text: k == 0 ? "Working Set Win32"
+                        : k == 1 ? "Process Times Win32"
+                        : k == 2 ? "Round-trip WebAI"
+                        : "Offline Lokal";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+                if k == 2 : Rectangle {
+                    x: 18px; y: 112px;
+                    width: parent.width - 36px; height: 30px;
+                    background: #3CE8FF14;
+                    border-width: 1px;
+                    border-color: #3CE8FF4D;
+                    border-radius: 6px;
+
+                    Icon {
+                        x: 12px; y: 8px;
+                        size: 13px;
+                        name: "camera";
+                        tint: Tokens.halo-cyan;
+                    }
+                    Text {
+                        x: 32px; y: 0;
+                        height: parent.height;
+                        text: "Uji Latensi";
+                        color: Tokens.halo-cyan;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        enabled: !root.diag-busy;
+                        mouse-cursor: pointer;
+                        clicked => { root.diag-test-all(); }
+                    }
+                }
+                Path {
+                    x: parent.width - 10px;
+                    y: parent.height - 10px;
+                    width: 10px; height: 10px;
+                    fill: Tokens.bg-void;
+                    commands: "M 0 10 L 10 0 L 10 10 Z";
+                }
+            }
+
+            // ---- .panel-card.conn-test-card ----
+            GlassCard {
+                x: 0; y: 388px;
+                width: parent.width;
+                height: 394px + root.diag-keys-h;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Tes Koneksi";
+                    color: Tokens.halo-cyan;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                MonoBadge {
+                    x: parent.width - 20px - self.width; y: 16px;
+                    label: root.browsers.length > 0 ? root.active-browser : "TIDAK ADA BROWSER";
+                }
+                Text {
+                    x: 20px; y: 54px;
+                    width: parent.width - 40px;
+                    text: "Uji endpoint WebAI, setiap key DeepSeek, dan ekstraksi cookie dari browser aktif. Hasilnya tampil di terminal diagnostik di bawah ini.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    wrap: word-wrap;
+                }
+
+                PrimaryButton {
+                    x: 20px; y: 118px;
+                    width: 196px; height: 38px;
+                    chamfer-fill: #101627;
+                    icon: "bolt";
+                    icon-size: 14px;
+                    label: root.diag-busy ? "MENGUJI..." : "UJI SEMUA WEBAI";
+                    enabled: !root.diag-busy;
+                    clicked => { root.diag-test-all(); }
+                }
+                HoloButton {
+                    x: 228px; y: 118px;
+                    width: 206px; height: 38px;
+                    icon: "layers";
+                    icon-size: 14px;
+                    label: "Uji Ekstraksi Cookie";
+                    enabled: !root.diag-busy;
+                    clicked => { root.diag-extract(); }
+                }
+                if root.deepseek-keys.length > 0 : HoloButton {
+                    x: 446px; y: 118px;
+                    width: 196px; height: 38px;
+                    icon: "key";
+                    icon-size: 14px;
+                    label: "Uji Semua Key (" + root.deepseek-keys.length + ")";
+                    enabled: !root.diag-busy;
+                    clicked => { root.diag-test-all-keys(); }
+                }
+
+                // ---- .conn-test-grid ---- (one card per live provider)
+                HorizontalLayout {
+                    x: 20px; y: 172px;
+                    width: parent.width - 40px;
+                    height: 144px;
+                    spacing: 12px;
+
+                    for p[j] in root.providers : Rectangle {
+                        horizontal-stretch: 1;
+                        height: 144px;
+                        background: #0E1422BF;
+                        border-width: 1px;
+                        border-color: #3CE8FF2E;
+                        border-radius: 8px;
+
+                        Rectangle {
+                            x: 16px; y: 22px;
+                            width: 36px; height: 36px;
+                            background: #070A12;
+                            border-width: 1px;
+                            border-color: Tokens.border-subtle;
+                            border-radius: 6px;
+
+                            Image {
+                                x: 6px; y: 6px;
+                                width: 24px; height: 24px;
+                                source: root.provider-logos[p.logo-index];
+                                image-fit: contain;
+                            }
+                        }
+                        Text {
+                            x: 62px; y: 14px;
+                            width: parent.width - 76px;
+                            height: 22px;
+                            text: p.name;
+                            overflow: elide;
+                            color: Tokens.text-main;
+                            font-family: Tokens.font-sans-bold;
+                            font-size: Tokens.panel-font-card;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Rectangle {
+                            x: 62px; y: 42px;
+                            width: 118px; height: 28px;
+                            background: #FFFFFF0D;
+                            border-width: 1px;
+                            border-color: #FFFFFF1F;
+                            border-radius: 14px;
+
+                            Rectangle {
+                                x: 10px; y: 11px;
+                                width: 6px; height: 6px;
+                                border-radius: 3px;
+                                background: p.tone-color;
+                            }
+                            Text {
+                                x: 22px; y: 0;
+                                width: 88px; height: 28px;
+                                text: p.status;
+                                color: p.tone-color;
+                                font-family: Tokens.font-mono-bold;
+                                font-size: Tokens.panel-font-min;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle {
+                            x: parent.width - 90px; y: 94px;
+                            width: 74px; height: 32px;
+                            background: #3CE8FF14;
+                            border-width: 1px;
+                            border-color: #3CE8FF4D;
+                            border-radius: 6px;
+
+                            Icon {
+                                x: 12px; y: 9px;
+                                size: 13px;
+                                name: "layers";
+                                tint: Tokens.halo-cyan;
+                            }
+                            Text {
+                                x: 32px; y: 0;
+                                width: 34px; height: 32px;
+                                text: "Uji";
+                                color: Tokens.halo-cyan;
+                                font-family: Tokens.font-sans-semibold;
+                                font-size: Tokens.panel-font-min;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                            TouchArea {
+                                enabled: !root.diag-busy;
+                                mouse-cursor: pointer;
+                                clicked => { root.diag-test(p.name); }
+                            }
+                        }
+                    }
+                }
+
+                // ---- .conn-keys-section ---- (only rendered when DeepSeek keys exist)
+                if root.deepseek-keys.length > 0 : Rectangle {
+                    x: 20px; y: 328px;
+                    width: parent.width - 40px;
+                    height: root.diag-keys-h - 8px;
+
+                    Text {
+                        x: 0; y: 0;
+                        height: 24px;
+                        text: "Uji Per-Key DeepSeek (" + root.deepseek-keys.length + " key)";
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-display-ui;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        x: 260px; y: 0;
+                        width: parent.width - 260px;
+                        height: 24px;
+                        text: "Uji tiap akun tanpa fallback silang";
+                        color: Tokens.text-muted;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+
+                    for k[ki] in root.deepseek-keys : DiagKeyRow {
+                        x: 0; y: 32px + ki * 52px;
+                        width: parent.width;
+                        key-item: k;
+                        browser-logos: root.browser-logos;
+                        busy: root.diag-busy;
+                        test-clicked(id) => { root.diag-test-key(id); }
+                    }
+                }
+
+                // ---- .status-terminal ----
+                Rectangle {
+                    x: 20px; y: 334px + root.diag-keys-h;
+                    width: parent.width - 40px; height: 40px;
+                    background: #070A12D9;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    border-radius: 6px;
+
+                    Rectangle {
+                        x: 14px; y: 16px;
+                        width: 7px; height: 7px;
+                        border-radius: 4px;
+                        background: root.diag-busy ? Tokens.polestar-gold
+                            : root.diag-ok ? Tokens.sync-emerald
+                            : #94A3B8;
+                    }
+                    Text {
+                        x: 30px; y: 0;
+                        width: parent.width - 44px; height: 40px;
+                        text: root.diag-status;
+                        overflow: elide;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-mono;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+
+            // ---- .panel-card.keybindings-card ----
+            GlassCard {
+                x: 0; y: 798px + root.diag-keys-h;
+                width: parent.width;
+                height: 428px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Daftar Pintasan";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+
+                ShortcutRow {
+                    x: 20px; y: 54px;
+                    width: parent.width - 40px;
+                    key1: root.hk-active-mod;
+                    key2: root.hk-active-key;
+                    detail-x: 170px;
+                    title: "Toggle HUD (Global Hotkey)";
+                    hint: "Buka/tutup HUD di atas game secara instan.";
+                }
+                ShortcutRow {
+                    x: 20px; y: 126px;
+                    width: parent.width - 40px;
+                    key1: root.trans-hk-active-mod;
+                    key2: root.trans-hk-active-key;
+                    detail-x: 170px;
+                    title: "Terjemahkan Layar (Bubble Maskot)";
+                    hint: "Jepret layar & tampilkan terjemahan (" + root.translate-lang + ") di samping GIF Aemeath.";
+                }
+                ShortcutRow {
+                    x: 20px; y: 198px;
+                    width: parent.width - 40px;
+                    key1: "Esc";
+                    detail-x: 170px;
+                    title: "Minimize ke Bubble";
+                    hint: "Kecilkan HUD ke bubble mengambang.";
+                }
+                ShortcutRow {
+                    x: 20px; y: 270px;
+                    width: parent.width - 40px;
+                    key1: "Enter";
+                    detail-x: 170px;
+                    title: "Kirim Pesan & Analisis";
+                    hint: "Kirim prompt beserta tangkapan layar desktop.";
+                }
+                ShortcutRow {
+                    x: 20px; y: 342px;
+                    width: parent.width - 40px;
+                    key1: "Shift";
+                    key2: "Enter";
+                    detail-x: 170px;
+                    title: "Baris Baru (Multiline)";
+                    hint: "Buat baris baru tanpa mengirim pesan.";
+                }
+            }
+        }
+
+        // ===== TAB 5: PENGATURAN =====
+        if root.active-tab == 4 : Rectangle {
+            x: 28px; y: 24px;
+            width: parent.width - 56px;
+            height: 2594px;
+
+            SectionTitle {
+                x: 0; y: 0;
+                width: parent.width;
+                title: "PENGATURAN";
+                subtitle: "Pintasan global, terjemahan layar cepat, preferensi HUD, dan database.";
+            }
+
+            // Card 1: Global Summon Hotkey
+            GlassCard {
+                property <length> col-w: (parent.width - 56px) / 2;
+                x: 0; y: 84px;
+                width: parent.width;
+                height: 320px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Pintasan Global (Hotkey HUD)";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 50px;
+                    width: parent.width - 40px;
+                    text: "Bekerja di latar belakang bahkan saat game fullscreen aktif.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+
+                Text {
+                    x: 20px; y: 92px;
+                    text: "Modifier";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: 20px; y: 120px;
+                    width: col-w; height: 40px;
+                    background: #0E1422;
+                    border-width: 1px;
+                    border-color: root.hk-menu == 1 ? Tokens.halo-cyan : Tokens.border-subtle;
+                    border-radius: 6px;
+
+                    Text {
+                        x: 12px; y: 0;
+                        width: parent.width - 36px; height: 40px;
+                        text: root.hk-mod;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    Icon {
+                        x: parent.width - 24px; y: 13px;
+                        size: 14px;
+                        name: "chevron-down";
+                        tint: Tokens.text-muted;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.hk-menu = root.hk-menu == 1 ? 0 : 1; }
+                    }
+                }
+
+                Text {
+                    x: 20px + col-w + 16px; y: 92px;
+                    text: "Key";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: 20px + col-w + 16px; y: 120px;
+                    width: col-w; height: 40px;
+                    background: #0E1422;
+                    border-width: 1px;
+                    border-color: root.hk-menu == 2 ? Tokens.halo-cyan : Tokens.border-subtle;
+                    border-radius: 6px;
+
+                    Text {
+                        x: 12px; y: 0;
+                        width: parent.width - 36px; height: 40px;
+                        text: root.hk-key;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    Icon {
+                        x: parent.width - 24px; y: 13px;
+                        size: 14px;
+                        name: "chevron-down";
+                        tint: Tokens.text-muted;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.hk-menu = root.hk-menu == 2 ? 0 : 2; }
+                    }
+                }
+
+                Text {
+                    x: 20px; y: 174px;
+                    text: "Pintasan Aktif";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: 20px; y: 202px;
+                    width: col-w; height: 40px;
+                    background: #3CE8FF14;
+                    border-width: 1px;
+                    border-color: Tokens.halo-cyan;
+                    border-radius: 6px;
+
+                    HorizontalLayout {
+                        x: 12px; y: 8px;
+                        width: parent.width - 24px;
+                        height: 24px;
+                        spacing: 6px;
+                        alignment: start;
+
+                        KeyCap { label: root.hk-active-mod; }
+                        Text {
+                            height: 24px;
+                            text: "+";
+                            color: Tokens.text-muted;
+                            font-family: Tokens.font-sans-bold;
+                            font-size: Tokens.panel-font-min;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        KeyCap { label: root.hk-active-key; }
+                    }
+                }
+
+                Rectangle {
+                    x: 20px; y: 256px;
+                    width: parent.width - 40px; height: 1px;
+                    background: Tokens.border-subtle;
+                }
+                PrimaryButton {
+                    x: 20px; y: 268px;
+                    width: 196px; height: 38px;
+                    chamfer-fill: #101627;
+                    icon: "check";
+                    icon-size: 15px;
+                    label: "SIMPAN PINTASAN";
+                    clicked => { root.hotkey-apply(); }
+                }
+                HoloButton {
+                    x: 228px; y: 268px;
+                    width: 152px; height: 38px;
+                    icon: "layers";
+                    icon-size: 14px;
+                    label: "Reset Default";
+                    clicked => { root.hotkey-reset(); }
+                }
+            }
+
+            // Card 2: Translate This Screen Shortcut & Language
+            GlassCard {
+                property <length> col-w: (parent.width - 68px) / 3;
+                x: 0; y: 420px;
+                width: parent.width;
+                height: 320px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Pintasan Translate Layar & Bahasa";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 50px;
+                    width: parent.width - 40px;
+                    text: "Otomatis jepret layar & tampilkan terjemahan langsung di bubble Aemeath.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+
+                Text {
+                    x: 20px; y: 92px;
+                    text: "Modifier";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: 20px; y: 120px;
+                    width: col-w; height: 40px;
+                    background: #0E1422;
+                    border-width: 1px;
+                    border-color: root.hk-menu == 3 ? Tokens.halo-cyan : Tokens.border-subtle;
+                    border-radius: 6px;
+
+                    Text {
+                        x: 12px; y: 0;
+                        width: parent.width - 36px; height: 40px;
+                        text: root.trans-hk-mod;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    Icon {
+                        x: parent.width - 24px; y: 13px;
+                        size: 14px;
+                        name: "chevron-down";
+                        tint: Tokens.text-muted;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.hk-menu = root.hk-menu == 3 ? 0 : 3; }
+                    }
+                }
+
+                Text {
+                    x: 20px + col-w + 14px; y: 92px;
+                    text: "Key";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: 20px + col-w + 14px; y: 120px;
+                    width: col-w; height: 40px;
+                    background: #0E1422;
+                    border-width: 1px;
+                    border-color: root.hk-menu == 4 ? Tokens.halo-cyan : Tokens.border-subtle;
+                    border-radius: 6px;
+
+                    Text {
+                        x: 12px; y: 0;
+                        width: parent.width - 36px; height: 40px;
+                        text: root.trans-hk-key;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    Icon {
+                        x: parent.width - 24px; y: 13px;
+                        size: 14px;
+                        name: "chevron-down";
+                        tint: Tokens.text-muted;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.hk-menu = root.hk-menu == 4 ? 0 : 4; }
+                    }
+                }
+
+                Text {
+                    x: 20px + (col-w + 14px) * 2; y: 92px;
+                    text: "Bahasa Target";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: 20px + (col-w + 14px) * 2; y: 120px;
+                    width: col-w; height: 40px;
+                    background: #0E1422;
+                    border-width: 1px;
+                    border-color: root.hk-menu == 5 ? Tokens.halo-cyan : Tokens.border-subtle;
+                    border-radius: 6px;
+
+                    Text {
+                        x: 12px; y: 0;
+                        width: parent.width - 36px; height: 40px;
+                        text: root.translate-lang;
+                        color: Tokens.halo-cyan;
+                        font-family: Tokens.font-sans-bold;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    Icon {
+                        x: parent.width - 24px; y: 13px;
+                        size: 14px;
+                        name: "chevron-down";
+                        tint: Tokens.halo-cyan;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.hk-menu = root.hk-menu == 5 ? 0 : 5; }
+                    }
+                }
+
+                Text {
+                    x: 20px; y: 174px;
+                    text: "Pintasan & Bahasa Translate Aktif";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: 20px; y: 202px;
+                    width: col-w * 2 + 14px; height: 40px;
+                    background: #3CE8FF14;
+                    border-width: 1px;
+                    border-color: Tokens.halo-cyan;
+                    border-radius: 6px;
+
+                    HorizontalLayout {
+                        x: 12px; y: 8px;
+                        width: parent.width - 24px;
+                        height: 24px;
+                        spacing: 6px;
+                        alignment: start;
+
+                        KeyCap { label: root.trans-hk-active-mod; }
+                        Text {
+                            height: 24px;
+                            text: "+";
+                            color: Tokens.text-muted;
+                            font-family: Tokens.font-sans-bold;
+                            font-size: Tokens.panel-font-min;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        KeyCap { label: root.trans-hk-active-key; }
+                        Text {
+                            height: 24px;
+                            text: "→";
+                            color: Tokens.text-muted;
+                            font-family: Tokens.font-sans;
+                            font-size: Tokens.panel-font-min;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            height: 24px;
+                            text: root.translate-lang;
+                            color: Tokens.halo-cyan;
+                            font-family: Tokens.font-sans-bold;
+                            font-size: Tokens.panel-font-min;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                Rectangle {
+                    x: 20px; y: 256px;
+                    width: parent.width - 40px; height: 1px;
+                    background: Tokens.border-subtle;
+                }
+                PrimaryButton {
+                    x: 20px; y: 268px;
+                    width: 206px; height: 38px;
+                    chamfer-fill: #101627;
+                    icon: "check";
+                    icon-size: 15px;
+                    label: "SIMPAN TRANSLATE";
+                    clicked => { root.trans-hotkey-apply(); }
+                }
+                HoloButton {
+                    x: 238px; y: 268px;
+                    width: 158px; height: 38px;
+                    icon: "layers";
+                    icon-size: 14px;
+                    label: "Reset (Alt+T)";
+                    clicked => { root.trans-hotkey-reset(); }
+                }
+            }
+
+            // Card 3: HUD Preferences
+            GlassCard {
+                x: 0; y: 756px;
+                width: parent.width;
+                height: 726px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Preferensi HUD & Tangkapan Layar";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+
+                SettingToggleRow {
+                    x: 20px; y: 56px;
+                    width: parent.width - 40px;
+                    row-h: 72px;
+                    checked: root.set-pin;
+                    setting-name: "Always on Top (Pin)";
+                    hint1: "Jendela HUD selalu berada di lapisan paling atas.";
+                    toggled(v) => { root.setting-toggled("pin", v); }
+                }
+                SettingToggleRow {
+                    x: 20px; y: 138px;
+                    width: parent.width - 40px;
+                    row-h: 72px;
+                    checked: root.set-auto-capture;
+                    setting-name: "Auto-Capture Layar";
+                    hint1: "Ambil tangkapan layar otomatis saat mengirim pesan.";
+                    toggled(v) => { root.setting-toggled("auto-capture", v); }
+                }
+                SettingToggleRow {
+                    x: 20px; y: 220px;
+                    width: parent.width - 40px;
+                    row-h: 116px;
+                    checked: root.set-capture-app;
+                    setting-name: "Sertakan Jendela Mini Assistant";
+                    hint1: "Aktifkan jika ingin jendela Mini Assistant ikut terlihat di tangkapan layar.";
+                    hint2: "Nonaktifkan agar jendela otomatis disembunyikan saat jepret sehingga";
+                    hint3: "hanya desktop/game yang tertangkap.";
+                    toggled(v) => { root.setting-toggled("capture-app", v); }
+                }
+                SettingToggleRow {
+                    x: 20px; y: 346px;
+                    width: parent.width - 40px;
+                    row-h: 96px;
+                    checked: root.set-target-window;
+                    setting-name: "Fokus Tangkapan Jendela Aktif (Game / App)";
+                    hint1: "Hanya memotong area jendela game atau aplikasi yang sedang aktif,";
+                    hint2: "dan otomatis mengecualikan jendela Mini Assistant.";
+                    toggled(v) => { root.setting-toggled("target-window", v); }
+                }
+                SettingToggleRow {
+                    x: 20px; y: 452px;
+                    width: parent.width - 40px;
+                    row-h: 96px;
+                    checked: root.set-random-singing;
+                    setting-name: "Random Singing (Saat Bubble Idle)";
+                    hint1: "Aemeath memutar lagu acak dari assets/musik/ saat mode Bubble idle.";
+                    hint2: "Berhenti otomatis saat HUD/Panel dibuka, chat AI berjalan, atau klik kanan Bubble.";
+                    toggled(v) => { root.setting-toggled("random-singing", v); }
+                }
+                SettingToggleRow {
+                    x: 20px; y: 558px;
+                    width: parent.width - 40px;
+                    row-h: 96px;
+                    checked: root.set-sing-ram-guard;
+                    setting-name: "Auto-Stop Musik saat RAM ≥ 85%";
+                    hint1: "Matikan musik otomatis jika penggunaan RAM sistem ≥ 85%" + (root.sing-ram-pct > 0 ? " (terpakai: " + root.sing-ram-pct + "%)" : "") + ",";
+                    hint2: "dan bebaskan buffer audio agar sistem tetap ringan.";
+                    toggled(v) => { root.setting-toggled("sing-ram-guard", v); }
+                }
+
+                // Volume chips + manual sing preview trigger
+                Rectangle {
+                    x: 20px; y: 666px;
+                    width: parent.width - 40px;
+                    height: 38px;
+
+                    Text {
+                        x: 0; y: 0;
+                        width: 112px; height: 38px;
+                        text: "Volume Nyanyi";
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-display;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    for v[vi] in [25, 50, 85, 100] : Rectangle {
+                        x: 116px + vi * 62px;
+                        y: 2px;
+                        width: 54px; height: 34px;
+                        background: root.sing-volume == v ? #FF8FB124 : #FFFFFF0D;
+                        border-width: 1px;
+                        border-color: root.sing-volume == v ? Tokens.aemeath-pink : Tokens.border-subtle;
+                        border-radius: 17px;
+
+                        Text {
+                            width: parent.width; height: parent.height;
+                            text: v + "%";
+                            color: root.sing-volume == v ? #FFFFFF : Tokens.text-muted;
+                            font-family: Tokens.font-sans;
+                            font-size: Tokens.panel-font-min;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.sing-volume-picked(v); }
+                        }
+                    }
+
+                    HoloButton {
+                        x: parent.width - 216px; y: 0;
+                        width: 216px; height: 38px;
+                        icon: root.sing-previewing ? "close" : "soundwave";
+                        icon-size: 14px;
+                        label: root.sing-previewing
+                            ? "Hentikan Nyanyi"
+                            : (root.sing-track-count > 0 ? "Uji Nyanyi (" + root.sing-track-count + " lagu)" : "Belum Ada Lagu");
+                        enabled: root.sing-previewing || root.sing-track-count > 0;
+                        clicked => { root.sing-test-toggled(); }
+                    }
+                }
+            }
+
+            // Card 4: Data Storage
+            GlassCard {
+                x: 0; y: 1498px;
+                width: parent.width;
+                height: 156px;
+                fill: #FF477E0A;
+                border: #FF477E66;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Penyimpanan Data";
+                    color: Tokens.overdrive-red;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 52px;
+                    width: parent.width - 40px;
+                    text: "Database tersimpan secara lokal dan aman di perangkat komputer Anda.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+                Rectangle {
+                    x: 20px; y: 94px;
+                    width: 236px; height: 40px;
+                    background: #FF477E26;
+                    border-width: 1px;
+                    border-color: #FF477E73;
+                    border-radius: 7px;
+
+                    Icon {
+                        x: 16px; y: 13px;
+                        size: 14px;
+                        name: "close";
+                        tint: Tokens.overdrive-red;
+                    }
+                    Text {
+                        x: 38px; y: 0;
+                        height: 40px;
+                        text: "HAPUS SEMUA RIWAYAT";
+                        color: Tokens.overdrive-red;
+                        font-family: Tokens.font-display;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        letter-spacing: 0.4px;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.clear-history(); }
+                    }
+                }
+            }
+
+            // Card 5: Chat & sending behaviour
+            GlassCard {
+                x: 0; y: 1670px;
+                width: parent.width;
+                height: 252px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Chat & Pengiriman Pesan";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                SettingToggleRow {
+                    x: 20px; y: 56px;
+                    width: parent.width - 40px;
+                    row-h: 72px;
+                    checked: root.set-enter-sends;
+                    setting-name: "Enter = Kirim Pesan";
+                    hint1: "Aktif: Enter kirim, Shift+Enter baris baru. Nonaktif: kirim lewat tombol.";
+                    toggled(v) => { root.setting-toggled("enter-sends", v); }
+                }
+                SettingToggleRow {
+                    x: 20px; y: 138px;
+                    width: parent.width - 40px;
+                    row-h: 96px;
+                    checked: root.set-send-close;
+                    setting-name: "Tutup Jendela Setelah Kirim";
+                    hint1: "HUD otomatis mengecil setelah pesan dikirim, lalu jawaban AI muncul";
+                    hint2: "di bubble samping maskot seperti hasil terjemahan layar.";
+                    toggled(v) => { root.setting-toggled("send-close", v); }
+                }
+            }
+
+            // Card 6: Editable translate prompt
+            GlassCard {
+                x: 0; y: 1938px;
+                width: parent.width;
+                height: 320px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Prompt Terjemahan Layar";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 50px;
+                    width: parent.width - 40px;
+                    text: "Instruksi yang dikirim bersama screenshot. {lang} = bahasa target.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+
+                // Presets
+                HorizontalLayout {
+                    x: 20px; y: 84px;
+                    width: parent.width - 40px; height: 34px;
+                    spacing: 10px;
+                    alignment: start;
+
+                    for preset[pi] in ["Semua teks layar", "Hanya percakapan", "Terjemah + ringkas"] : Rectangle {
+                        width: pr-lbl.preferred-width + 26px; height: 34px;
+                        background: #FFFFFF0D;
+                        border-width: 1px;
+                        border-color: Tokens.border-subtle;
+                        border-radius: 17px;
+                        pr-lbl := Text {
+                            x: 13px; y: 0;
+                            height: 34px;
+                            text: preset;
+                            color: Tokens.text-main;
+                            font-family: Tokens.font-sans;
+                            font-size: Tokens.panel-font-min;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if (pi == 0) {
+                                    root.translate-prompt = "Terjemahkan seluruh teks pada layar ini ke dalam bahasa {lang}.";
+                                } else if (pi == 1) {
+                                    root.translate-prompt = "Terjemahkan hanya isi percakapan/chat pada layar ini ke dalam bahasa {lang}. Abaikan tombol, menu, ikon, dan elemen antarmuka lainnya.";
+                                } else {
+                                    root.translate-prompt = "Terjemahkan teks utama pada layar ini ke dalam bahasa {lang}, lalu beri ringkasan satu kalimat di akhir.";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    x: 20px; y: 130px;
+                    width: parent.width - 40px; height: 112px;
+                    background: #070A12B3;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    border-radius: 8px;
+                    clip: true;
+
+                    TextInput {
+                        x: 12px; y: 10px;
+                        width: parent.width - 24px;
+                        height: parent.height - 20px;
+                        text <=> root.translate-prompt;
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        wrap: word-wrap;
+                        single-line: false;
+                    }
+                }
+
+                PrimaryButton {
+                    x: 20px; y: 260px;
+                    width: 190px; height: 38px;
+                    chamfer-fill: #101627;
+                    icon: "check";
+                    icon-size: 15px;
+                    label: "SIMPAN PROMPT";
+                    clicked => { root.translate-prompt-saved(root.translate-prompt); }
+                }
+                HoloButton {
+                    x: 222px; y: 260px;
+                    width: 152px; height: 38px;
+                    icon: "layers";
+                    icon-size: 14px;
+                    label: "Reset Default";
+                    clicked => { root.translate-prompt-saved(""); }
+                }
+            }
+
+            // Card 7: Chat typography
+            GlassCard {
+                x: 0; y: 2274px;
+                width: parent.width;
+                height: 304px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: "Tampilan Teks Chat";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 50px;
+                    width: parent.width - 40px;
+                    text: "Ukuran dan jenis font untuk balasan di HUD dan bubble.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+
+                Text {
+                    x: 20px; y: 88px;
+                    text: "Ukuran Font";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                for sz[si] in [12, 13, 14, 15, 16, 18] : Rectangle {
+                    x: 20px + si * 74px;
+                    y: 114px;
+                    width: 66px; height: 34px;
+                    background: root.font-size-px == sz ? #3CE8FF24 : #FFFFFF0D;
+                    border-width: 1px;
+                    border-color: root.font-size-px == sz ? Tokens.halo-cyan : Tokens.border-subtle;
+                    border-radius: 17px;
+                    Text {
+                        width: parent.width; height: parent.height;
+                        text: sz + "px";
+                        color: root.font-size-px == sz ? #FFFFFF : Tokens.text-muted;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.font-size-picked(sz); }
+                    }
+                }
+
+                Text {
+                    x: 20px; y: 162px;
+                    text: "Jenis Font";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-md;
+                    font-weight: 700;
+                }
+                HorizontalLayout {
+                    x: 20px; y: 188px;
+                    width: parent.width - 40px; height: 34px;
+                    spacing: 10px;
+                    alignment: start;
+                    for fam[fi] in ["Aemeath Sans", "Segoe UI", "Calibri", "Consolas", "Space Grotesk"] : Rectangle {
+                        width: fam-t.preferred-width + 26px;
+                        height: 34px;
+                        background: root.font-family-sel == fam ? #3CE8FF24 : #FFFFFF0D;
+                        border-width: 1px;
+                        border-color: root.font-family-sel == fam ? Tokens.halo-cyan : Tokens.border-subtle;
+                        border-radius: 17px;
+                        fam-t := Text {
+                            x: 13px; y: 0;
+                            height: 34px;
+                            text: fam == "Aemeath Sans" ? "Jakarta" : fam;
+                            color: root.font-family-sel == fam ? #FFFFFF : Tokens.text-muted;
+                            font-family: fam;
+                            font-size: Tokens.panel-font-min;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.font-family-picked(fam); }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    x: 20px; y: 238px;
+                    width: parent.width - 40px; height: 48px;
+                    background: #070A12B3;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    border-radius: 8px;
+                    Text {
+                        x: 14px; y: 0;
+                        width: parent.width - 28px; height: parent.height;
+                        text: "Contoh: Halo! Ini tampilan teks chat Aemeath 123.";
+                        color: #FFFFFF;
+                        font-family: root.font-family-sel;
+                        font-size: root.font-size-px * 1px;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            // Click-away layer for dropdowns
+            if root.hk-menu != 0 : Rectangle {
+                x: 0; y: 0;
+                width: parent.width;
+                height: parent.height;
+                background: #00000000;
+                TouchArea { clicked => { root.hk-menu = 0; } }
+            }
+
+            // HUD Hotkey Modifier dropdown
+            if root.hk-menu == 1 : Rectangle {
+                x: 20px; y: 248px;
+                width: (parent.width - 56px) / 2;
+                height: 8px + 5 * 34px;
+                background: #0E1422;
+                border-width: 1px;
+                border-color: Tokens.border-cyan;
+                border-radius: 6px;
+                drop-shadow-blur: 18px;
+                drop-shadow-color: #000000CC;
+
+                for m[i] in ["Alt", "Ctrl", "Shift", "Ctrl+Alt", "Alt+Shift"] : Rectangle {
+                    x: 4px; y: 4px + i * 34px;
+                    width: parent.width - 8px; height: 32px;
+                    background: root.hk-mod == m ? #3CE8FF1F : #00000000;
+                    border-radius: 4px;
+
+                    Text {
+                        x: 10px; y: 0;
+                        height: 32px;
+                        text: m;
+                        color: root.hk-mod == m ? Tokens.halo-cyan : Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        clicked => {
+                            root.hk-menu = 0;
+                            root.hotkey-picked("mod", m);
+                        }
+                    }
+                }
+            }
+
+            // HUD Hotkey Key dropdown
+            if root.hk-menu == 2 : Rectangle {
+                x: 20px + ((parent.width - 56px) / 2) + 16px; y: 248px;
+                width: (parent.width - 56px) / 2;
+                height: 8px + 6 * 34px;
+                background: #0E1422;
+                border-width: 1px;
+                border-color: Tokens.border-cyan;
+                border-radius: 6px;
+                drop-shadow-blur: 18px;
+                drop-shadow-color: #000000CC;
+
+                for k[i] in ["Q", "E", "X", "C", "V", "Space"] : Rectangle {
+                    x: 4px; y: 4px + i * 34px;
+                    width: parent.width - 8px; height: 32px;
+                    background: root.hk-key == k ? #3CE8FF1F : #00000000;
+                    border-radius: 4px;
+
+                    Text {
+                        x: 10px; y: 0;
+                        height: 32px;
+                        text: k;
+                        color: root.hk-key == k ? Tokens.halo-cyan : Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        clicked => {
+                            root.hk-menu = 0;
+                            root.hotkey-picked("key", k);
+                        }
+                    }
+                }
+            }
+
+            // Translate Hotkey Modifier dropdown
+            if root.hk-menu == 3 : Rectangle {
+                x: 20px; y: 584px;
+                width: (parent.width - 68px) / 3;
+                height: 8px + 5 * 34px;
+                background: #0E1422;
+                border-width: 1px;
+                border-color: Tokens.border-cyan;
+                border-radius: 6px;
+                drop-shadow-blur: 18px;
+                drop-shadow-color: #000000CC;
+
+                for m[i] in ["Alt", "Ctrl", "Shift", "Ctrl+Alt", "Alt+Shift"] : Rectangle {
+                    x: 4px; y: 4px + i * 34px;
+                    width: parent.width - 8px; height: 32px;
+                    background: root.trans-hk-mod == m ? #3CE8FF1F : #00000000;
+                    border-radius: 4px;
+
+                    Text {
+                        x: 10px; y: 0;
+                        height: 32px;
+                        text: m;
+                        color: root.trans-hk-mod == m ? Tokens.halo-cyan : Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        clicked => {
+                            root.hk-menu = 0;
+                            root.trans-hotkey-picked("mod", m);
+                        }
+                    }
+                }
+            }
+
+            // Translate Hotkey Key dropdown
+            if root.hk-menu == 4 : Rectangle {
+                x: 20px + ((parent.width - 68px) / 3) + 14px; y: 584px;
+                width: (parent.width - 68px) / 3;
+                height: 8px + 7 * 34px;
+                background: #0E1422;
+                border-width: 1px;
+                border-color: Tokens.border-cyan;
+                border-radius: 6px;
+                drop-shadow-blur: 18px;
+                drop-shadow-color: #000000CC;
+
+                for k[i] in ["T", "R", "S", "D", "F1", "F2", "Space"] : Rectangle {
+                    x: 4px; y: 4px + i * 34px;
+                    width: parent.width - 8px; height: 32px;
+                    background: root.trans-hk-key == k ? #3CE8FF1F : #00000000;
+                    border-radius: 4px;
+
+                    Text {
+                        x: 10px; y: 0;
+                        height: 32px;
+                        text: k;
+                        color: root.trans-hk-key == k ? Tokens.halo-cyan : Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        clicked => {
+                            root.hk-menu = 0;
+                            root.trans-hotkey-picked("key", k);
+                        }
+                    }
+                }
+            }
+
+            // Translate Target Language dropdown
+            if root.hk-menu == 5 : Rectangle {
+                x: 20px + (((parent.width - 68px) / 3) + 14px) * 2; y: 584px;
+                width: (parent.width - 68px) / 3;
+                height: 8px + root.translate-langs.length * 34px;
+                background: #0E1422;
+                border-width: 1px;
+                border-color: Tokens.border-cyan;
+                border-radius: 6px;
+                drop-shadow-blur: 18px;
+                drop-shadow-color: #000000CC;
+
+                for lang[i] in root.translate-langs : Rectangle {
+                    x: 4px; y: 4px + i * 34px;
+                    width: parent.width - 8px; height: 32px;
+                    background: root.translate-lang == lang ? #3CE8FF1F : #00000000;
+                    border-radius: 4px;
+
+                    Text {
+                        x: 10px; y: 0;
+                        height: 32px;
+                        text: lang;
+                        color: root.translate-lang == lang ? Tokens.halo-cyan : Tokens.text-main;
+                        font-family: Tokens.font-sans;
+                        font-size: Tokens.panel-font-min;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        clicked => {
+                            root.hk-menu = 0;
+                            root.translate-lang-selected(lang);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Every tab starts at the top when the user switches pages.
+    changed active-tab => { scroll.content-y = 0px; }
+
+    // Dev helper (screenshots): jump the settings page down by `y`.
+    public function scroll-to(y: length) { scroll.content-y = -y; }
+
+    // ---------------------------------------------------------------------
+    //  TOAST (.toast-pill)
+    // ---------------------------------------------------------------------
+    if root.status-visible : Rectangle {
+        x: (parent.width - 420px) / 2;
+        y: Tokens.topbar-height + 12px;
+        width: 420px; height: 42px;
+        background: #0E1422F2;
+        border-width: 1px;
+        border-color: Tokens.border-cyan;
+        border-radius: 21px;
+        drop-shadow-blur: 18px;
+        drop-shadow-color: #00000099;
+
+        Icon {
+            x: 16px; y: 13px;
+            size: 14px; name: "spark"; tint: Tokens.halo-cyan;
+        }
+        Text {
+            x: 38px; y: 0;
+            width: 364px; height: parent.height;
+            text: root.status-text;
+            color: Tokens.text-main;
+            font-family: Tokens.font-sans;
+            font-size: Tokens.panel-font-min;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    //  CLOSE MODAL (Close Control Panel -> HUD vs Close System)
+    // ---------------------------------------------------------------------
+    if root.close-modal-open : Rectangle {
+        x: 0; y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #04070ED0;
+
+        TouchArea {
+            clicked => { root.close-modal-open = false; }
+        }
+
+        FocusScope {
+            key-pressed(event) => {
+                if (event.text == Key.Escape) {
+                    root.close-modal-open = false;
+                    return accept;
+                }
+                reject
+            }
+        }
+
+        GlassCard {
+            x: (parent.width - 580px) / 2;
+            y: (parent.height - 360px) / 2;
+            width: 580px;
+            height: 360px;
+            fill: #0C1222FC;
+            border: Tokens.border-cyan;
+            diamond: true;
+            chamfer: true;
+
+            // Absorb clicks inside the dialog card so they never trigger backdrop click-away.
+            TouchArea {}
+
+            Icon {
+                x: 24px; y: 24px;
+                size: 18px;
+                name: "power";
+                tint: Tokens.aemeath-pink;
+            }
+            Text {
+                x: 50px; y: 20px;
+                width: parent.width - 114px;
+                text: "Tutup Control Panel";
+                color: Tokens.text-main;
+                font-family: Tokens.font-display;
+                font-size: Tokens.panel-font-title;
+                font-weight: 700;
+            }
+            Rectangle {
+                x: parent.width - 54px; y: 18px;
+                width: 32px; height: 32px;
+                background: #FFFFFF0D;
+                border-width: 1px;
+                border-color: Tokens.border-subtle;
+                border-radius: 6px;
+                modal-x-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.close-modal-open = false; }
+                }
+                Icon {
+                    x: 9px; y: 9px;
+                    size: 14px; name: "close";
+                    tint: modal-x-touch.has-hover ? #FFFFFF : Tokens.text-muted;
+                }
+            }
+            Text {
+                x: 24px; y: 54px;
+                width: parent.width - 48px;
+                text: "Pilih apakah ingin kembali ke Floating HUD atau menghentikan seluruh sistem Mini Assistant:";
+                color: Tokens.text-muted;
+                font-family: Tokens.font-sans;
+                font-size: Tokens.panel-font-min;
+                line-height-factor: 1.3;
+                wrap: word-wrap;
+            }
+
+            // Option 1: Close Control Panel only -> switch to Floating HUD
+            hud-opt := Rectangle {
+                x: 24px; y: 110px;
+                width: parent.width - 48px;
+                height: 84px;
+                background: hud-opt-touch.has-hover ? #3CE8FF26 : #3CE8FF14;
+                border-width: 1px;
+                border-color: hud-opt-touch.has-hover ? Tokens.halo-cyan : #3CE8FF59;
+                border-radius: 10px;
+
+                hud-opt-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.close-modal-open = false;
+                        root.close-panel-to-hud();
+                    }
+                }
+                Icon {
+                    x: 18px; y: 32px;
+                    size: 20px;
+                    name: "halo";
+                    tint: Tokens.halo-cyan;
+                }
+                Text {
+                    x: 52px; y: 12px;
+                    width: parent.width - 70px;
+                    text: "Tutup Control Panel (Beralih ke HUD)";
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 52px; y: 38px;
+                    width: parent.width - 70px;
+                    text: "Control Panel disembunyikan dan jendela Floating HUD langsung dibuka.";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    line-height-factor: 1.25;
+                    wrap: word-wrap;
+                }
+            }
+
+            // Option 2: Close System (UI + hotkeys + backend api-ai)
+            sys-opt := Rectangle {
+                x: 24px; y: 206px;
+                width: parent.width - 48px;
+                height: 84px;
+                background: sys-opt-touch.has-hover ? #FF477E33 : #FF477E1A;
+                border-width: 1px;
+                border-color: sys-opt-touch.has-hover ? Tokens.overdrive-red : #FF477E73;
+                border-radius: 10px;
+
+                sys-opt-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.close-modal-open = false;
+                        root.close-system();
+                    }
+                }
+                Icon {
+                    x: 18px; y: 32px;
+                    size: 20px;
+                    name: "close";
+                    tint: Tokens.overdrive-red;
+                }
+                Text {
+                    x: 52px; y: 12px;
+                    width: parent.width - 70px;
+                    text: "Close System (Matikan Semua)";
+                    color: #FFDCE6;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 52px; y: 38px;
+                    width: parent.width - 70px;
+                    text: "Keluar penuh dari Control Panel, HUD, Bubble, hotkey & backend API AI.";
+                    color: #FCA5A5;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                    line-height-factor: 1.25;
+                    wrap: word-wrap;
+                }
+            }
+
+            // Cancel
+            Rectangle {
+                x: (parent.width - 140px) / 2;
+                y: 304px;
+                width: 140px; height: 36px;
+                background: cancel-touch.has-hover ? #FFFFFF1F : #FFFFFF0D;
+                border-width: 1px;
+                border-color: Tokens.border-subtle;
+                border-radius: 7px;
+
+                cancel-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.close-modal-open = false; }
+                }
+                Text {
+                    width: parent.width; height: parent.height;
+                    text: "Batal";
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans-semibold;
+                    font-size: Tokens.panel-font-min;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

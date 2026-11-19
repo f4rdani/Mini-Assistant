@@ -1,0 +1,17 @@
+// ===========================================================================
+//  Single compilation entry point.
+//
+//  Only this file is passed to slint_build::compile(). The three window
+//  definitions live in their own files but are pulled in here, so the
+//  generated Rust module contains every type exactly once (the design-token
+//  globals in theme.slint would otherwise be duplicated per compiled file).
+// ===========================================================================
+
+import { MainPanel } from "MainPanel.slint";
+import { HudWindow } from "HudWindow.slint";
+import { BubbleWindow } from "BubbleWindow.slint";
+import { Tokens, Icons } from "theme.slint";
+import { ProviderItem, BrowserItem, TopicItem, TopicCategory, HudMessage, MessageBlockItem, TableRowItem, TableCellItem, EmojiGlyphItem, PartialCopyItem, SearchSourceItem, ChatLayout } from "model.slint";
+
+export { MainPanel, HudWindow, BubbleWindow, Tokens, Icons }
+export { ProviderItem, BrowserItem, TopicItem, TopicCategory, HudMessage, MessageBlockItem, TableRowItem, TableCellItem, EmojiGlyphItem, PartialCopyItem, SearchSourceItem, ChatLayout }

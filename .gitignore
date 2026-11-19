@@ -1,0 +1,27 @@
+.DS_Store
+node_modules
+/build
+/.svelte-kit
+/package
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Native (Slint) UI & Rust Crates
+/ui-native/target/
+/app-core/target/
+/backend-api-ai/target/
+target/
+/dist/
+/_old/
+accounts.json
+*.db
+*.db-wal
+*.db-shm
+*.log
+/ui-native/*.out
+/ui-native/*.err
+/ui-native/shot-*.png
+/ui-native/crop-*.png

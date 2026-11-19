@@ -1,0 +1,40 @@
+[package]
+name = "api-ai"
+version = "0.1.0"
+edition = "2021"
+description = "Turn chat.deepseek.com web session into an OpenAI-compatible API"
+
+[[bin]]
+name = "api-ai"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[features]
+default = ["standalone"]
+standalone = ["dep:dotenvy", "dep:tracing-subscriber", "tower-http/trace"]
+
+[dependencies]
+axum = { version = "0.8", features = ["macros", "multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "fs"] }
+tower-http = { version = "0.6", features = ["cors"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "multipart", "gzip", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = "0.3"
+async-stream = "0.3"
+bytes = "1"
+uuid = { version = "1", features = ["v4"] }
+hex = "0.4"
+base64 = "0.22"
+anyhow = "1"
+dotenvy = { version = "0.15", optional = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+wasmi = "2.0.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

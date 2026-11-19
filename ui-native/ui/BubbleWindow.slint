@@ -1,0 +1,299 @@
+import { Tokens, Icons } from "theme.slint";
+import { Icon, AemeathAvatar } from "components.slint";
+
+// ===========================================================================
+//  MODEL 2A — MINI FLOATING BUBBLE  (.mini-bubble-widget / .st-aemeath-orb)
+//  Normal mode: 92x92 mascot GIF orb.
+//  Translate mode: expands beside the mascot orb to display a compact floating
+//  speech bubble with the live/completed screen translation without opening
+//  the full HUD.
+// ===========================================================================
+
+export component BubbleWindow inherits Window {
+    title: "Mini Assistant Bubble";
+    icon: @image-url("../assets/app-icon.png");
+    background: transparent;
+    no-frame: true;
+    always-on-top: true;
+    default-font-family: Tokens.font-sans;
+
+    in property <image> avatar;
+    in-out property <bool> held: false;
+    in-out property <bool> dragging: false;
+    // "top" | "bottom" | "left" | "right"
+    in-out property <string> edge: "bottom";
+    in-out property <bool> singing: false;
+    in-out property <int> sing-phase: 0;
+
+    // --- Screen Translate speech bubble state ---
+    in-out property <bool> translate-visible: false;
+    in-out property <bool> translate-busy: false;
+    in-out property <string> translate-lang: "Indonesia";
+    in-out property <string> translate-text: "";
+    in-out property <styled-text> translate-styled;
+    in-out property <int> dot-phase: 0;
+    // Typography for the message text (Control Panel > Pengaturan).
+    in property <string> text-font-family: "Segoe UI";
+    in property <float> text-font-px: 13;
+    in property <string> loading-label: "Menerjemahkan layar...";
+    out property <length> trans-scroll-y: -trans-vp.content-y;
+    out property <length> trans-scroll-max: max(0px, trans-vp.content-height - trans-vp.height);
+
+    public function scroll-to-bottom() {
+        trans-vp.content-y = min(0px, trans-vp.height - max(trans-vp.content-height, trans-flow.preferred-height));
+    }
+
+    public function scroll-to-top() {
+        trans-vp.content-y = 0px;
+    }
+
+    callback expand-requested;
+    callback drag-start;
+    callback drag-release;
+    callback toggle-sing-requested;
+    callback close-translate;
+    callback copy-translate;
+    callback open-in-hud;
+
+    // Hidden measurement elements to size the bubble snugly around its message
+    loading-measure := Text {
+        x: -9999px; y: -9999px;
+        opacity: 0;
+        text: root.loading-label;
+        font-family: Tokens.font-sans;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    measure-natural := StyledText {
+        x: -9999px; y: -9999px;
+        opacity: 0;
+        text: root.translate-styled;
+        default-color: #F4F7FB;
+        default-font-family: root.text-font-family;
+        default-font-size: root.text-font-px * 1px;
+        link-color: #3CE8FF;
+    }
+
+    property <bool> is-loading: root.translate-busy && root.translate-text == "";
+    property <length> raw-content-w: root.is-loading
+        ? (loading-measure.preferred-width + 24px)
+        : measure-natural.preferred-width;
+    property <length> card-w: min(304px, max(76px, root.raw-content-w + 26px));
+
+    measure-wrapped := StyledText {
+        x: -9999px; y: -9999px;
+        opacity: 0;
+        width: root.card-w - 24px;
+        text: root.translate-styled;
+        default-color: #F4F7FB;
+        default-font-family: root.text-font-family;
+        default-font-size: root.text-font-px * 1px;
+        link-color: #3CE8FF;
+    }
+
+    property <length> raw-content-h: root.is-loading
+        ? 18px
+        : (measure-wrapped.preferred-height + (root.translate-busy ? 14px : 0px));
+    property <length> card-h: min(340px, max(36px, root.raw-content-h + 18px));
+    property <bool> needs-scroll: !root.is-loading && (root.raw-content-h + 18px > 340px);
+
+    out property <length> target-win-w: root.translate-visible ? (104px + root.card-w) : 92px;
+    out property <length> target-win-h: root.translate-visible ? max(92px, root.card-h + 16px) : 92px;
+
+    width: root.target-win-w;
+    height: root.target-win-h;
+
+    property <bool> mascot-on-right: root.translate-visible && root.edge == "right";
+    property <bool> mascot-on-bottom: root.translate-visible && root.edge == "bottom";
+    property <length> mascot-x: root.mascot-on-right ? root.width - 92px : 0px;
+    property <length> mascot-y: root.mascot-on-bottom ? root.height - 92px : 0px;
+    out property <bool> translate-hovered: (root.translate-visible && (card-touch.has-hover || flow-touch.has-hover)) || bubble-area.has-hover;
+    property <float> orb-scale: bubble-area.pressed ? 0.98 : (bubble-area.has-hover ? 1.06 : 1.0);
+    animate orb-scale { duration: 180ms; easing: ease-out; }
+
+    property <length> avatar-size: 80px * root.orb-scale;
+
+    // Mascot orb container (92x92)
+    Rectangle {
+        x: root.mascot-x;
+        y: root.mascot-y;
+        width: 92px;
+        height: 92px;
+        background: transparent;
+
+        AemeathAvatar {
+            x: 46px - root.avatar-size / 2;
+            y: 46px - root.avatar-size / 2;
+            size: root.avatar-size;
+            sprite: root.avatar;
+            singing: root.singing && !root.held;
+            sing-phase: root.sing-phase;
+        }
+
+        // Compact vector musical notes floating beside Aemeath while singing
+        if root.singing && !root.held : Path {
+            property <int> bob-a: Math.mod(root.sing-phase, 4);
+            x: root.edge == "right" ? 7px : 71px;
+            y: (root.edge == "top" ? 66px : 10px) - (self.bob-a == 3 ? 1 : self.bob-a) * 2px;
+            width: 12px; height: 14px;
+            viewbox-width: 24; viewbox-height: 24;
+            fill: #FF8FB1;
+            opacity: self.bob-a == 3 ? 0.65 : 0.95;
+            commands: "M 12 3 L 12 15.5 C 11.2 14.9 10.1 14.5 9 14.5 C 6.8 14.5 5 16.1 5 18 C 5 19.9 6.8 21.5 9 21.5 C 11.2 21.5 13 19.9 13 18 L 13 8 L 19 9.5 L 19 5.5 L 12 3 Z";
+            animate y, opacity { duration: 170ms; easing: ease-in-out; }
+        }
+        if root.singing && !root.held : Path {
+            property <int> bob-b: Math.mod(root.sing-phase + 2, 4);
+            x: root.edge == "right" ? 21px : 58px;
+            y: (root.edge == "top" ? 56px : 18px) - (self.bob-b == 3 ? 1 : self.bob-b) * 2px;
+            width: 11px; height: 12px;
+            viewbox-width: 24; viewbox-height: 24;
+            fill: #3CE8FF;
+            opacity: self.bob-b == 3 ? 0.55 : 0.88;
+            commands: "M 9 17.5 C 9 19.2 7.4 20.5 5.5 20.5 C 3.6 20.5 2 19.2 2 17.5 C 2 15.8 3.6 14.5 5.5 14.5 C 6.4 14.5 7.2 14.8 7.8 15.3 L 7.8 5.2 L 19 3 L 19 15.5 C 19 17.2 17.4 18.5 15.5 18.5 C 13.6 18.5 12 17.2 12 15.5 C 12 13.8 13.6 12.5 15.5 12.5 C 16.4 12.5 17.2 12.8 17.8 13.3 L 17.8 6.8 L 9 8.6 Z";
+            animate y, opacity { duration: 170ms; easing: ease-in-out; }
+        }
+
+        bubble-area := TouchArea {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: parent.height;
+            mouse-cursor: root.held ? MouseCursor.grabbing : MouseCursor.grab;
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                    root.drag-start();
+                } else if ((event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel)
+                        && event.button == PointerEventButton.left) {
+                    root.drag-release();
+                } else if (event.kind == PointerEventKind.up && event.button == PointerEventButton.right
+                        && !root.translate-visible) {
+                    root.toggle-sing-requested();
+                }
+            }
+        }
+    }
+
+    // Minimalist message-only floating speech bubble beside Aemeath GIF (click opens HUD)
+    Rectangle {
+        visible: root.translate-visible;
+        x: root.mascot-on-right ? 8px : 96px;
+        y: root.card-h < 76px ? (parent.height - self.height) / 2 : 8px;
+        width: root.card-w;
+        height: root.card-h;
+        background: #0B111E99;
+        border-radius: 14px;
+        border-width: 1px;
+        border-color: #3CE8FF66;
+        drop-shadow-blur: 10px;
+        drop-shadow-color: #00000080;
+        animate background, border-color { duration: 120ms; }
+
+        // Speech connector nub facing the mascot orb
+        Rectangle {
+            x: root.mascot-on-right ? parent.width - 2px : -4px;
+            y: root.card-h < 76px ? (parent.height - self.height) / 2 : 34px;
+            width: 6px;
+            height: 14px;
+            border-radius: 3px;
+            background: Tokens.halo-cyan;
+        }
+
+        card-touch := TouchArea {
+            x: 0; y: 0;
+            width: parent.width;
+            height: parent.height;
+            enabled: root.translate-visible;
+            mouse-cursor: pointer;
+            clicked => { root.open-in-hud(); }
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.right) {
+                    root.close-translate();
+                }
+            }
+        }
+
+        // Compact loading state (before first chunk arrives)
+        if root.is-loading : HorizontalLayout {
+            x: 12px;
+            y: (parent.height - 18px) / 2;
+            height: 18px;
+            spacing: 6px;
+            alignment: start;
+            for di in [0, 1, 2] : Rectangle {
+                y: 6px;
+                width: 5px; height: 5px;
+                border-radius: 2.5px;
+                background: di == root.dot-phase ? Tokens.halo-cyan : #3CE8FF44;
+            }
+            Text {
+                vertical-alignment: center;
+                text: root.loading-label;
+                color: Tokens.aemeath-soft;
+                font-size: 12px;
+                font-weight: 600;
+            }
+        }
+
+        // Responsive message viewport (scrollable only if taller than 340px)
+        trans-vp := Flickable {
+            visible: !root.is-loading;
+            x: 10px; y: 7px;
+            width: parent.width - 20px;
+            height: parent.height - 14px;
+            interactive: root.needs-scroll;
+            content-width: parent.width - 20px;
+            content-height: trans-flow.preferred-height;
+
+            trans-flow := VerticalLayout {
+                x: 0; y: 0;
+                width: parent.width;
+                padding: 2px;
+                spacing: 6px;
+                alignment: start;
+
+                StyledText {
+                    width: parent.width - 4px;
+                    text: root.translate-styled;
+                    default-color: #F4F7FB;
+                    default-font-family: root.text-font-family;
+                    default-font-size: root.text-font-px * 1px;
+                    link-color: #3CE8FF;
+                }
+
+                if root.translate-busy : HorizontalLayout {
+                    spacing: 5px;
+                    alignment: start;
+                    for di in [0, 1, 2] : Rectangle {
+                        y: 4px;
+                        width: 5px; height: 5px;
+                        border-radius: 2.5px;
+                        background: di == root.dot-phase ? Tokens.halo-cyan : #3CE8FF44;
+                    }
+                }
+            }
+
+            flow-touch := TouchArea {
+                x: 0; y: 0;
+                width: max(trans-vp.width, trans-flow.width);
+                height: max(trans-vp.height, trans-flow.preferred-height);
+                enabled: root.translate-visible;
+                mouse-cursor: pointer;
+                clicked => { root.open-in-hud(); }
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.up && event.button == PointerEventButton.right) {
+                        root.close-translate();
+                    }
+                }
+            }
+        }
+
+        states [
+            hovered when card-touch.has-hover || flow-touch.has-hover : {
+                background: #10192CEB;
+                border-color: #3CE8FFAA;
+            }
+        ]
+    }
+}

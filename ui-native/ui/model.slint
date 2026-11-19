@@ -1,0 +1,160 @@
+// Shared model structs. Kept in their own file so that MainPanel.slint and
+// HudWindow.slint can both use them without duplicating the definitions.
+
+// Layout output of `model::relayout()`: the bottom edge of the last chat row,
+// consumed by the HUD's message ScrollView.
+export global ChatLayout {
+    in-out property <int> content-h: 0;
+}
+
+export struct ProviderItem {
+    id: string,
+    name: string,
+    status: string,
+    tone: string,
+    tone-color: color,
+    order: string,
+    tag: string,
+    enabled: bool,
+    logo-key: string,
+    // Index into the full `provider-logos` model. Stored per provider so the
+    // correct mark follows a row when the fallback order changes.
+    logo-index: int,
+}
+
+export struct BrowserItem {
+    id: string,
+    name: string,
+    profile: string,
+    selected: bool,
+    logo-key: string,
+}
+
+export struct VaultKeyItem {
+    id: string,
+    badge: string,
+    email: string,
+    source: string,
+    profile: string,
+    status-text: string,
+    tone: string,
+    is-primary: bool,
+    diag-text: string,
+    diag-tone: string,
+}
+
+export struct TopicItem {
+    name: string,
+    active: bool,
+    count: string,     // "12 pesan" — row subtitle
+    category: string,  // GENERAL / GAME / BROWSER
+    when: string,      // created-at, already formatted for display
+    initial: string,   // first letter of the topic, used by the avatar tile
+}
+
+// Category chip above the session list. Counts come from the same query that
+// feeds `TopicItem`, so the chips always match the visible rows.
+export struct TopicCategory {
+    name: string,
+    count: string,
+    active: bool,
+}
+
+export struct SearchSourceItem {
+    title: string,
+    url: string,
+    snippet: string,
+    site-name: string,
+    date: string,
+    badge-text: string,
+    badge-color: color,
+}
+
+export struct PartialCopyItem {
+    kind: string,
+    text: string,
+    copied: bool,
+}
+
+export struct AttachmentItem {
+    thumb: image,
+    is-image: bool,
+    ext: string,
+    path: string,
+}
+
+export struct TableCellItem {
+    styled: styled-text,
+    width-px: int,
+    align: string,
+    has-text: bool,
+}
+
+export struct TableRowItem {
+    cells: [TableCellItem],
+}
+
+export struct EmojiGlyphItem {
+    img: image,
+    text: string,
+}
+
+export struct MessageBlockItem {
+    kind: string,       // "heading" | "prose" | "list" | "quote" | "divider" | "code" | "table" | "emoji-row" | "image"
+    styled: styled-text,
+    raw: string,
+    plain-selectable: bool,
+    level: int,
+    marker: string,
+    indent: int,
+    gap-top: int,
+    lang: string,
+    headers: [TableCellItem],
+    rows: [TableRowItem],
+    table-w: int,
+    emoji-img: image,
+    has-emoji-img: bool,
+    emojis: [EmojiGlyphItem],
+    img: image,
+    img-w: int,
+    img-h: int,
+    img-url: string,
+    img-caption: string,
+    img-loading: bool,
+    img-failed: bool,
+}
+
+export struct HudMessage {
+    role: string,        // "user" | "assistant"
+    provider: string,    // GROK / CLAUDE / ...
+    body: string,
+    badge: string,
+    markdown: bool,
+    styled: styled-text, // rich text, parsed from markdown on the Rust side
+    thought: string,     // reasoning text; empty when the model did not think
+    thought-open: bool,  // inline panel inside the bubble, under the header
+    think-label: string, // "Berpikir selama 4 detik"
+    offset-y: int,       // computed in Rust; rows stack manually
+    height: int,         // computed in Rust (whole row)
+    body-y: int,         // computed in Rust; answer text starts below the thought
+    body-h: int,         // computed in Rust; estimated wrapped height
+    thought-h: int,      // computed in Rust; 0 while collapsed
+    bubble-w: int,       // computed in Rust; bubbles hug their content
+    meta: string,        // "DeepSeek · 3,2 dtk · 128 token" (Detail row)
+    detail-open: bool,   // shows the meta row under the answer
+    failed: bool,        // last attempt errored; the bubble offers a retry
+    attach-thumb: image, // user attachment preview (empty for files)
+    attach-name: string, // extension badge (PDF/PNG/...), empty = no attachment
+    attach-image: bool,  // thumb is a real image
+    attach-path: string, // local file path to open with system viewer
+    attachments: [AttachmentItem],
+    search-count: int,
+    search-open: bool,
+    copied: bool,
+    user-selectable: bool,
+    select-mode: bool,
+    select-text: string,
+    select-copied: bool,
+    sources: [SearchSourceItem],
+    blocks: [MessageBlockItem],
+}
