@@ -275,7 +275,11 @@ pub fn copy_file_shared(src: &Path, dst: &Path) -> Result<(), String> {
         }
     }
 
-    Err("Berkas database cookies sedang dikunci secara eksklusif oleh browser.".to_string())
+    Err(crate::modules::i18n::tr(
+        "Berkas database cookies sedang dikunci secara eksklusif oleh browser.",
+        "The cookies database file is exclusively locked by the browser.",
+    )
+    .to_string())
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -287,9 +291,13 @@ pub enum TokenVerifyStatus {
 
 /// Memvalidasi token ke endpoint resmi DeepSeek (`https://chat.deepseek.com/api/v0/users/current`).
 pub fn verify_deepseek_token(token: &str) -> TokenVerifyStatus {
+    use crate::modules::i18n::{is_en, tr};
+
     let trimmed = token.trim();
     if trimmed.len() < 20 {
-        return TokenVerifyStatus::Invalid("Token terlalu pendek".to_string());
+        return TokenVerifyStatus::Invalid(
+            tr("Token terlalu pendek", "Token is too short").to_string(),
+        );
     }
 
     let client = match reqwest::blocking::Client::builder()
@@ -321,7 +329,11 @@ pub fn verify_deepseek_token(token: &str) -> TokenVerifyStatus {
                 break;
             }
             Err(e) => {
-                last_err = format!("Gagal menghubungi server DeepSeek: {e}");
+                last_err = if is_en() {
+                    format!("Failed to reach DeepSeek server: {e}")
+                } else {
+                    format!("Gagal menghubungi server DeepSeek: {e}")
+                };
                 if attempt == 0 {
                     std::thread::sleep(std::time::Duration::from_millis(250));
                 }
@@ -337,7 +349,13 @@ pub fn verify_deepseek_token(token: &str) -> TokenVerifyStatus {
     let text = resp.text().unwrap_or_default();
     let val: serde_json::Value = match serde_json::from_str(&text) {
         Ok(v) => v,
-        Err(_) => return TokenVerifyStatus::NetworkError(format!("Respon DeepSeek bukan JSON (HTTP {status})")),
+        Err(_) => {
+            return TokenVerifyStatus::NetworkError(if is_en() {
+                format!("DeepSeek response is not JSON (HTTP {status})")
+            } else {
+                format!("Respon DeepSeek bukan JSON (HTTP {status})")
+            });
+        }
     };
 
     let code = val.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
@@ -347,11 +365,18 @@ pub fn verify_deepseek_token(token: &str) -> TokenVerifyStatus {
             .filter(|s| s.as_str().map(|str| !str.trim().is_empty()).unwrap_or(false))
             .or_else(|| val.pointer("/data/biz_data/id_profile/name"))
             .and_then(|s| s.as_str())
-            .unwrap_or("Akun Terautentikasi");
+            .unwrap_or_else(|| tr("Akun Terautentikasi", "Authenticated Account"));
         TokenVerifyStatus::Valid(name.to_string())
     } else {
-        let msg = val.get("msg").and_then(|m| m.as_str()).unwrap_or("Token tidak valid");
-        TokenVerifyStatus::Invalid(format!("DeepSeek menolak token ({code}): {msg}"))
+        let msg = val
+            .get("msg")
+            .and_then(|m| m.as_str())
+            .unwrap_or_else(|| tr("Token tidak valid", "Invalid token"));
+        TokenVerifyStatus::Invalid(if is_en() {
+            format!("DeepSeek rejected token ({code}): {msg}")
+        } else {
+            format!("DeepSeek menolak token ({code}): {msg}")
+        })
     }
 }
 
@@ -409,7 +434,11 @@ pub fn diagnose_cookie_extraction(
             browser_name: profile.browser_name.clone(),
             profile_name: profile.profile_name.clone(),
             status_code: "NOT_FOUND".to_string(),
-            message: format!("Berkas database cookies tidak ditemukan: {}", profile.cookies_path),
+            message: if crate::modules::i18n::is_en() {
+                format!("Cookies database file not found: {}", profile.cookies_path)
+            } else {
+                format!("Berkas database cookies tidak ditemukan: {}", profile.cookies_path)
+            },
             ..Default::default()
         }
     } else {
@@ -430,15 +459,20 @@ pub fn diagnose_cookie_extraction(
                 let (status_code, message) = if is_locked {
                     (
                         "LOCKED".to_string(),
-                        format!(
-                            "Berkas cookies sedang dikunci oleh '{}'.",
-                            profile.browser_name
-                        ),
+                        if crate::modules::i18n::is_en() {
+                            format!("Cookies database is locked by '{}'.", profile.browser_name)
+                        } else {
+                            format!("Berkas cookies sedang dikunci oleh '{}'.", profile.browser_name)
+                        },
                     )
                 } else {
                     (
                         "ERROR".to_string(),
-                        format!("Gagal menyalin berkas cookies: {}", err_str),
+                        if crate::modules::i18n::is_en() {
+                            format!("Failed to copy cookies database: {}", err_str)
+                        } else {
+                            format!("Gagal menyalin berkas cookies: {}", err_str)
+                        },
                     )
                 };
 
@@ -489,6 +523,7 @@ pub fn diagnose_cookie_extraction(
 
     // If LevelDB found an active auth token, upgrade the result!
     if let Some(token) = leveldb_token {
+        let en = crate::modules::i18n::is_en();
         result.success = true;
         result.has_auth_token = true;
         result.status_code = "READY".to_string();
@@ -498,12 +533,21 @@ pub fn diagnose_cookie_extraction(
         } else {
             String::new()
         };
-        result.message = format!(
-            "Berhasil mengekstrak token sesi aktif {}{} dari LocalStorage {}!",
-            provider.to_uppercase(),
-            display_suffix,
-            profile.browser_name
-        );
+        result.message = if en {
+            format!(
+                "Successfully extracted active {}{} session token from {} LocalStorage!",
+                provider.to_uppercase(),
+                display_suffix,
+                profile.browser_name
+            )
+        } else {
+            format!(
+                "Berhasil mengekstrak token sesi aktif {}{} dari LocalStorage {}!",
+                provider.to_uppercase(),
+                display_suffix,
+                profile.browser_name
+            )
+        };
         if result.cookie_header.is_empty() {
             result.cookie_header = token.clone();
         }
@@ -518,27 +562,50 @@ pub fn diagnose_cookie_extraction(
             CookieDiagnosticItem {
                 name: token_key.to_string(),
                 host: format!("{}.com", provider),
-                encryption_type: "LocalStorage (Terverifikasi)".to_string(),
+                encryption_type: if en {
+                    "LocalStorage (Verified)".to_string()
+                } else {
+                    "LocalStorage (Terverifikasi)".to_string()
+                },
                 is_decrypted: true,
                 is_auth_token: true,
-                preview: format!("{} (LocalStorage aktif{})", token_key, display_suffix),
+                preview: if en {
+                    format!("{} (Active LocalStorage{})", token_key, display_suffix)
+                } else {
+                    format!("{} (LocalStorage aktif{})", token_key, display_suffix)
+                },
             },
         );
     } else if provider == "deepseek" {
+        let en = crate::modules::i18n::is_en();
         result.success = false;
         result.has_auth_token = false;
         if let Some(err_msg) = deepseek_expired_reason {
             result.status_code = "INVALID_TOKEN".to_string();
-            result.message = format!(
-                "Token DeepSeek ditemukan di {} (LocalStorage), namun {}. Silakan tekan Ctrl+F5 pada tab https://chat.deepseek.com di {} atau pastikan Anda sudah login.",
-                profile.browser_name, err_msg, profile.browser_name
-            );
+            result.message = if en {
+                format!(
+                    "DeepSeek token found in {} (LocalStorage), but {}. Press Ctrl+F5 on the https://chat.deepseek.com tab in {} or make sure you are signed in.",
+                    profile.browser_name, err_msg, profile.browser_name
+                )
+            } else {
+                format!(
+                    "Token DeepSeek ditemukan di {} (LocalStorage), namun {}. Silakan tekan Ctrl+F5 pada tab https://chat.deepseek.com di {} atau pastikan Anda sudah login.",
+                    profile.browser_name, err_msg, profile.browser_name
+                )
+            };
         } else {
             result.status_code = "NO_COOKIES".to_string();
-            result.message = format!(
-                "Tidak ditemukan sesi login DeepSeek aktif di {}. Pastikan Anda telah membuka https://chat.deepseek.com dan login ke akun Anda di {}.",
-                profile.browser_name, profile.browser_name
-            );
+            result.message = if en {
+                format!(
+                    "No active DeepSeek session found in {}. Make sure you opened https://chat.deepseek.com and signed in on {}.",
+                    profile.browser_name, profile.browser_name
+                )
+            } else {
+                format!(
+                    "Tidak ditemukan sesi login DeepSeek aktif di {}. Pastikan Anda telah membuka https://chat.deepseek.com dan login ke akun Anda di {}.",
+                    profile.browser_name, profile.browser_name
+                )
+            };
         }
     }
 
@@ -939,7 +1006,11 @@ fn extract_chromium_cookies(
                 v20_count: 0,
                 has_auth_token: false,
                 status_code: "ERROR".to_string(),
-                message: format!("Gagal membuka SQLite cookies: {}", e),
+                message: if crate::modules::i18n::is_en() {
+                    format!("Failed to open cookies SQLite: {}", e)
+                } else {
+                    format!("Gagal membuka SQLite cookies: {}", e)
+                },
                 cookie_items: Vec::new(),
                 cookie_header: String::new(),
                 statsig_seed: None,
@@ -977,7 +1048,11 @@ fn extract_chromium_cookies(
                 v20_count: 0,
                 has_auth_token: false,
                 status_code: "SYNTAX_ERROR".to_string(),
-                message: format!("Query SQLite gagal: {}", e),
+                message: if crate::modules::i18n::is_en() {
+                    format!("SQLite query failed: {}", e)
+                } else {
+                    format!("Query SQLite gagal: {}", e)
+                },
                 cookie_items: Vec::new(),
                 cookie_header: String::new(),
                 statsig_seed: None,
@@ -1014,7 +1089,11 @@ fn extract_chromium_cookies(
                 v20_count: 0,
                 has_auth_token: false,
                 status_code: "ERROR".to_string(),
-                message: format!("Gagal membaca baris tabel cookies: {}", e),
+                message: if crate::modules::i18n::is_en() {
+                    format!("Failed reading cookies table rows: {}", e)
+                } else {
+                    format!("Gagal membaca baris tabel cookies: {}", e)
+                },
                 cookie_items: Vec::new(),
                 cookie_header: String::new(),
                 statsig_seed: None,
@@ -1053,13 +1132,13 @@ fn extract_chromium_cookies(
             enc_type = "Plaintext".to_string();
             is_decrypted = true;
             decrypted_count += 1;
-            preview = format!("{} (tersedia)", name);
+            preview = format!("{} ({})", name, crate::modules::i18n::tr("tersedia", "available"));
             cookies_map.insert(name.clone(), plain_val);
         } else if !enc_val.is_empty() {
             if enc_val.starts_with(b"v20") {
                 enc_type = "App-Bound (v20)".to_string();
                 v20_count += 1;
-                preview = format!("{} (terkunci v20)", name);
+                preview = format!("{} ({})", name, crate::modules::i18n::tr("terkunci v20", "locked v20"));
             } else if enc_val.starts_with(b"v10") || enc_val.starts_with(b"v11") {
                 enc_type = "DPAPI (v10)".to_string();
                 if let Some(key) = master_key {
@@ -1067,7 +1146,7 @@ fn extract_chromium_cookies(
                         if !val.is_empty() {
                             is_decrypted = true;
                             decrypted_count += 1;
-                            preview = format!("{} (didekripsi)", name);
+                            preview = format!("{} ({})", name, crate::modules::i18n::tr("didekripsi", "decrypted"));
                             cookies_map.insert(name.clone(), val);
                         }
                     }
@@ -1078,7 +1157,7 @@ fn extract_chromium_cookies(
                     if !val.is_empty() {
                         is_decrypted = true;
                         decrypted_count += 1;
-                        preview = format!("{} (didekripsi)", name);
+                        preview = format!("{} ({})", name, crate::modules::i18n::tr("didekripsi", "decrypted"));
                         cookies_map.insert(name.clone(), val);
                     }
                 }
@@ -1101,59 +1180,91 @@ fn extract_chromium_cookies(
     }
     let cookie_header = header_parts.join("; ");
 
+    let en = crate::modules::i18n::is_en();
     let (success, status_code, message) = if decrypted_count > 0 {
         let auth_str = if has_auth_token {
-            " (Token autentikasi ditemukan)"
+            crate::modules::i18n::tr(" (Token autentikasi ditemukan)", " (Auth token found)")
         } else {
             ""
         };
         (
             true,
             "READY".to_string(),
-            format!(
-                "Berhasil mengekstrak {} cookies via DPAPI{}!",
-                decrypted_count, auth_str
-            ),
+            if en {
+                format!("Successfully extracted {} cookies via DPAPI{}!", decrypted_count, auth_str)
+            } else {
+                format!("Berhasil mengekstrak {} cookies via DPAPI{}!", decrypted_count, auth_str)
+            },
         )
     } else if v20_count > 0 {
         if provider == "deepseek" {
             (
                 false,
                 "NO_COOKIES".to_string(),
-                format!(
-                    "Sesi login DeepSeek tidak ditemukan di LocalStorage {}. Pastikan Anda telah login ke https://chat.deepseek.com di browser tersebut.",
-                    profile.browser_name
-                ),
+                if en {
+                    format!(
+                        "DeepSeek login session not found in {} LocalStorage. Make sure you are signed in to https://chat.deepseek.com in that browser.",
+                        profile.browser_name
+                    )
+                } else {
+                    format!(
+                        "Sesi login DeepSeek tidak ditemukan di LocalStorage {}. Pastikan Anda telah login ke https://chat.deepseek.com di browser tersebut.",
+                        profile.browser_name
+                    )
+                },
             )
         } else {
             (
                 false,
                 "APP_BOUND".to_string(),
-                format!(
-                    "Ditemukan {} cookies domain untuk {}, namun terenkripsi proteksi Chromium 127+ App-Bound Encryption (v20). Gunakan browser Firefox atau Edge versi non-v20 untuk ekstraksi langsung.",
-                    total_found,
-                    provider.to_uppercase()
-                ),
+                if en {
+                    format!(
+                        "Found {} domain cookies for {}, protected by Chromium 127+ App-Bound Encryption (v20). Use Firefox or non-v20 Edge for direct cookie decryption.",
+                        total_found,
+                        provider.to_uppercase()
+                    )
+                } else {
+                    format!(
+                        "Ditemukan {} cookies domain untuk {}, namun terenkripsi proteksi Chromium 127+ App-Bound Encryption (v20). Gunakan browser Firefox atau Edge versi non-v20 untuk ekstraksi langsung.",
+                        total_found,
+                        provider.to_uppercase()
+                    )
+                },
             )
         }
     } else if total_found == 0 {
         (
             false,
             "NO_COOKIES".to_string(),
-            format!(
-                "Tidak ditemukan cookies untuk {} pada profil {}. Pastikan Anda telah login ke akun Anda di browser.",
-                provider.to_uppercase(),
-                profile.profile_name
-            ),
+            if en {
+                format!(
+                    "No cookies found for {} on profile {}. Make sure you are signed in to your account in that browser.",
+                    provider.to_uppercase(),
+                    profile.profile_name
+                )
+            } else {
+                format!(
+                    "Tidak ditemukan cookies untuk {} pada profil {}. Pastikan Anda telah login ke akun Anda di browser.",
+                    provider.to_uppercase(),
+                    profile.profile_name
+                )
+            },
         )
     } else {
         (
             false,
             "DECRYPT_FAILED".to_string(),
-            format!(
-                "Ditemukan {} cookies di database, namun dekripsi master key DPAPI gagal.",
-                total_found
-            ),
+            if en {
+                format!(
+                    "Found {} cookies in database, but DPAPI master key decryption failed.",
+                    total_found
+                )
+            } else {
+                format!(
+                    "Ditemukan {} cookies di database, namun dekripsi master key DPAPI gagal.",
+                    total_found
+                )
+            },
         )
     };
 

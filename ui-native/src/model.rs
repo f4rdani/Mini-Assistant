@@ -987,7 +987,9 @@ fn resolve_local_path(src: &str) -> Option<std::path::PathBuf> {
 fn resolve_image_source(src: &str) -> ResolvedImage {
     let src = src.trim();
     if src.is_empty() {
-        return ResolvedImage::Failed("URL gambar kosong".into());
+        return ResolvedImage::Failed(
+            app_core::tr("URL gambar kosong", "Image URL is empty").into(),
+        );
     }
 
     // 1. data: URI
@@ -1006,7 +1008,15 @@ fn resolve_image_source(src: &str) -> ResolvedImage {
             let raw_bytes = if meta_lower.ends_with(";base64") {
                 match app_core::decode_base64_bytes(payload) {
                     Ok(b) => b,
-                    Err(e) => return ResolvedImage::Failed(format!("Base64 tidak valid: {e}")),
+                    Err(e) => {
+                        return ResolvedImage::Failed(
+                            app_core::tr(
+                                &format!("Base64 tidak valid: {e}"),
+                                &format!("Invalid Base64: {e}"),
+                            )
+                            .into(),
+                        );
+                    }
                 }
             } else {
                 percent_decode_utf8(payload).into_bytes()
@@ -1031,10 +1041,14 @@ fn resolve_image_source(src: &str) -> ResolvedImage {
                         raw_svg,
                     }
                 }
-                None => ResolvedImage::Failed("Gagal decode data gambar".into()),
+                None => ResolvedImage::Failed(
+                    app_core::tr("Gagal decode data gambar", "Failed to decode image data").into(),
+                ),
             };
         }
-        return ResolvedImage::Failed("Format data URI tidak valid".into());
+        return ResolvedImage::Failed(
+            app_core::tr("Format data URI tidak valid", "Invalid data URI format").into(),
+        );
     }
 
     // 2. Local filesystem / file:// URI
@@ -1085,9 +1099,21 @@ fn resolve_image_source(src: &str) -> ResolvedImage {
                         raw_svg,
                     }
                 }
-                None => ResolvedImage::Failed("Format file gambar tidak didukung".into()),
+                None => ResolvedImage::Failed(
+                    app_core::tr(
+                        "Format file gambar tidak didukung",
+                        "Unsupported image file format",
+                    )
+                    .into(),
+                ),
             },
-            Err(e) => ResolvedImage::Failed(format!("Gagal membaca file: {e}")),
+            Err(e) => ResolvedImage::Failed(
+                app_core::tr(
+                    &format!("Gagal membaca file: {e}"),
+                    &format!("Failed to read file: {e}"),
+                )
+                .into(),
+            ),
         };
     }
 
@@ -1125,7 +1151,13 @@ fn resolve_image_source(src: &str) -> ResolvedImage {
         };
     }
 
-    ResolvedImage::Failed("Sumber gambar tidak valid atau file tidak ditemukan".into())
+    ResolvedImage::Failed(
+        app_core::tr(
+            "Sumber gambar tidak valid atau file tidak ditemukan",
+            "Invalid image source or file not found",
+        )
+        .into(),
+    )
 }
 
 /// Returns `true` while any remote markdown image is still downloading.
@@ -1157,7 +1189,13 @@ pub fn pump_remote_images(model: &slint::VecModel<HudMessage>) -> bool {
         let entry = match res {
             Ok((bytes, _ct)) => match decode_raster_image_bytes(&bytes) {
                 Some((img, w, h, _svg)) => CachedImage::Ready { img, w, h },
-                None => CachedImage::Failed("Format gambar tidak didukung".into()),
+                None => CachedImage::Failed(
+                    app_core::tr(
+                        "Format gambar tidak didukung",
+                        "Unsupported image format",
+                    )
+                    .into(),
+                ),
             },
             Err(e) => CachedImage::Failed(e),
         };
@@ -2592,16 +2630,26 @@ pub fn set_thought(m: &mut HudMessage, thought: &str, label: &str) {
 use crate::PartialCopyItem;
 #[cfg(test)]
 pub fn partial_copy_segments(body: &str, markdown: bool) -> Vec<PartialCopyItem> {
+    partial_copy_segments_for(app_core::current_lang(), body, markdown)
+}
+
+#[cfg(test)]
+pub fn partial_copy_segments_for(
+    lang: app_core::AppLang,
+    body: &str,
+    markdown: bool,
+) -> Vec<PartialCopyItem> {
     if body.trim().is_empty() {
         return Vec::new();
     }
     if !markdown {
+        let text_lbl = app_core::tr_for(lang, "Teks", "Text");
         return body
             .lines()
             .map(str::trim)
             .filter(|l| !l.is_empty())
             .map(|l| PartialCopyItem {
-                kind: "Teks".into(),
+                kind: text_lbl.into(),
                 text: l.into(),
                 copied: false,
             })
@@ -2611,9 +2659,9 @@ pub fn partial_copy_segments(body: &str, markdown: bool) -> Vec<PartialCopyItem>
     let mut out = Vec::new();
     for blk in parse_message_blocks(body) {
         let (kind_label, text) = match blk.kind.as_str() {
-            "heading" => ("Judul", blk.raw.to_string()),
-            "prose" => ("Paragraf", blk.raw.to_string()),
-            "quote" => ("Kutipan", blk.raw.to_string()),
+            "heading" => (app_core::tr_for(lang, "Judul", "Heading").to_string(), blk.raw.to_string()),
+            "prose" => (app_core::tr_for(lang, "Paragraf", "Paragraph").to_string(), blk.raw.to_string()),
+            "quote" => (app_core::tr_for(lang, "Kutipan", "Quote").to_string(), blk.raw.to_string()),
             "list" => {
                 let prefix = match blk.marker.as_str() {
                     "done" => "✅ ",
@@ -2622,17 +2670,23 @@ pub fn partial_copy_segments(body: &str, markdown: bool) -> Vec<PartialCopyItem>
                     m if !m.is_empty() => "",
                     _ => "• ",
                 };
+                let point_lbl = app_core::tr_for(lang, "Poin", "Item").to_string();
                 if prefix.is_empty() && !blk.marker.is_empty() {
-                    ("Poin", format!("{} {}", blk.marker, blk.raw))
+                    (point_lbl, format!("{} {}", blk.marker, blk.raw))
                 } else {
-                    ("Poin", format!("{prefix}{}", blk.raw))
+                    (point_lbl, format!("{prefix}{}", blk.raw))
                 }
             }
             "code" => {
                 let lbl = if blk.lang.is_empty() || blk.lang == "code" {
-                    "Kode".to_string()
+                    app_core::tr_for(lang, "Kode", "Code").to_string()
                 } else {
-                    format!("Kode ({})", blk.lang)
+                    app_core::tr_for(
+                        lang,
+                        &format!("Kode ({})", blk.lang),
+                        &format!("Code ({})", blk.lang),
+                    )
+                    .to_string()
                 };
                 out.push(PartialCopyItem {
                     kind: lbl.into(),
@@ -2643,9 +2697,9 @@ pub fn partial_copy_segments(body: &str, markdown: bool) -> Vec<PartialCopyItem>
             }
             "image" => {
                 if blk.lang == "svg" {
-                    ("SVG", blk.raw.to_string())
+                    ("SVG".to_string(), blk.raw.to_string())
                 } else if !blk.img_url.is_empty() {
-                    ("Gambar", blk.img_url.to_string())
+                    (app_core::tr_for(lang, "Gambar", "Image").to_string(), blk.img_url.to_string())
                 } else {
                     continue;
                 }
@@ -2948,24 +3002,53 @@ pub fn browsers_from_with_active(
 }
 
 pub fn vault_keys_from(accounts: &[app_core::AccountEntry]) -> Vec<VaultKeyItem> {
+    vault_keys_from_for(app_core::current_lang(), accounts)
+}
+
+pub fn vault_keys_from_for(
+    lang: app_core::AppLang,
+    accounts: &[app_core::AccountEntry],
+) -> Vec<VaultKeyItem> {
     accounts
         .iter()
         .enumerate()
         .map(|(idx, acc)| {
             let is_primary = idx == 0;
             let (status_text, tone) = if acc.busy {
-                ("Sibuk".to_string(), "cyan".to_string())
+                (app_core::tr_for(lang, "Sibuk", "Busy").to_string(), "cyan".to_string())
             } else if acc.cooling_down {
                 let err_l = acc.last_error.to_ascii_lowercase();
                 if err_l.contains("40003") || err_l.contains("invalid token") {
-                    (format!("Token mati ({}d)", acc.cooldown_secs), "red".to_string())
+                    (
+                        app_core::tr_for(
+                            lang,
+                            &format!("Token mati ({}d)", acc.cooldown_secs),
+                            &format!("Token expired ({}s)", acc.cooldown_secs),
+                        )
+                        .to_string(),
+                        "red".to_string(),
+                    )
                 } else {
-                    (format!("Limit ({}d)", acc.cooldown_secs), "amber".to_string())
+                    (
+                        app_core::tr_for(
+                            lang,
+                            &format!("Limit ({}d)", acc.cooldown_secs),
+                            &format!("Rate limit ({}s)", acc.cooldown_secs),
+                        )
+                        .to_string(),
+                        "amber".to_string(),
+                    )
                 }
             } else if is_primary {
-                ("Utama · Siap".to_string(), "green".to_string())
+                (
+                    app_core::tr_for(lang, "Utama · Siap", "Primary · Ready").to_string(),
+                    "green".to_string(),
+                )
             } else {
-                ("Cadangan · Siap".to_string(), "cyan".to_string())
+                (
+                    app_core::tr_for(lang, "Cadangan · Siap", "Backup · Ready").to_string(),
+                    "cyan".to_string(),
+                )
             };
             VaultKeyItem {
                 id: acc.name.clone().into(),
@@ -2984,6 +3067,13 @@ pub fn vault_keys_from(accounts: &[app_core::AccountEntry]) -> Vec<VaultKeyItem>
 }
 
 pub fn format_key_test_badge(res: &app_core::AccountTestResult) -> (String, String) {
+    format_key_test_badge_for(app_core::current_lang(), res)
+}
+
+pub fn format_key_test_badge_for(
+    lang: app_core::AppLang,
+    res: &app_core::AccountTestResult,
+) -> (String, String) {
     if res.ok {
         let ms = res.latency_ms.unwrap_or(0);
         return (format!("OK · {ms} ms"), "green".to_string());
@@ -2997,16 +3087,25 @@ pub fn format_key_test_badge(res: &app_core::AccountTestResult) -> (String, Stri
         .iter()
         .any(|p| lower.contains(p))
     {
-        ("Token mati".to_string(), "red".to_string())
+        (
+            app_core::tr_for(lang, "Token mati", "Expired token").to_string(),
+            "red".to_string(),
+        )
     } else if ["429", "rate limit", "quota", "exceeded", "too many"]
         .iter()
         .any(|p| lower.contains(p))
     {
-        ("Limit kuota".to_string(), "amber".to_string())
+        (
+            app_core::tr_for(lang, "Limit kuota", "Rate limited").to_string(),
+            "amber".to_string(),
+        )
     } else if lower.contains("timeout") || lower.contains("timed out") {
         ("Timeout".to_string(), "amber".to_string())
     } else {
-        ("Gagal uji".to_string(), "red".to_string())
+        (
+            app_core::tr_for(lang, "Gagal uji", "Test failed").to_string(),
+            "red".to_string(),
+        )
     }
 }
 
@@ -3027,6 +3126,15 @@ pub fn topics_from(
     active: Option<&str>,
     count: &dyn Fn(&str) -> usize,
 ) -> Vec<TopicItem> {
+    topics_from_for(app_core::current_lang(), list, active, count)
+}
+
+pub fn topics_from_for(
+    lang: app_core::AppLang,
+    list: &[app_core::TopicItem],
+    active: Option<&str>,
+    count: &dyn Fn(&str) -> usize,
+) -> Vec<TopicItem> {
     if list.is_empty() {
         return Vec::new();
     }
@@ -3034,10 +3142,20 @@ pub fn topics_from(
     list.iter()
         .map(|t| {
             let n = count(&t.name);
+            let count_text = match lang {
+                app_core::AppLang::Id => format!("{n} pesan"),
+                app_core::AppLang::En => {
+                    if n == 1 {
+                        "1 message".to_string()
+                    } else {
+                        format!("{n} messages")
+                    }
+                }
+            };
             TopicItem {
                 name: t.name.clone().into(),
                 active: t.name == active,
-                count: format!("{n} pesan").into(),
+                count: count_text.into(),
                 category: t.category.to_uppercase().into(),
                 when: pretty_when(&t.created_at).into(),
                 initial: initial_of(&t.name).into(),
@@ -3047,26 +3165,39 @@ pub fn topics_from(
 }
 
 pub fn pending_topic(name: &str, category: &str) -> TopicItem {
+    pending_topic_for(app_core::current_lang(), name, category)
+}
+
+pub fn pending_topic_for(lang: app_core::AppLang, name: &str, category: &str) -> TopicItem {
     let cat = category.trim();
     TopicItem {
         name: name.into(),
         active: true,
-        count: "0 pesan".into(),
+        count: app_core::tr_for(lang, "0 pesan", "0 messages").into(),
         category: if cat.is_empty() {
             "GENERAL".into()
         } else {
             cat.to_uppercase().into()
         },
-        when: "Sekarang".into(),
+        when: app_core::tr_for(lang, "Sekarang", "Just now").into(),
         initial: initial_of(name).into(),
     }
 }
 
 pub fn topic_categories(list: &[TopicItem], filter: &str) -> Vec<TopicCategory> {
+    topic_categories_for(app_core::current_lang(), list, filter)
+}
+
+pub fn topic_categories_for(
+    lang: app_core::AppLang,
+    list: &[TopicItem],
+    filter: &str,
+) -> Vec<TopicCategory> {
+    let all_label = app_core::tr_for(lang, "Semua", "All");
     let mut out = vec![TopicCategory {
-        name: "Semua".into(),
+        name: all_label.into(),
         count: list.len().to_string().into(),
-        active: filter.is_empty() || filter == "Semua",
+        active: filter.is_empty() || filter == "Semua" || filter == "All",
     }];
     let mut seen: Vec<String> = Vec::new();
     for t in list {
@@ -3655,5 +3786,76 @@ Semoga informasi ini bermanfaat! Hubungi kami jika ada pertanyaan lebih lanjut."
         apply_key_diag_results(&mut items, &map);
         assert_eq!(items[0].diag_text.as_str(), "OK · 412 ms");
         assert_eq!(items[0].diag_tone.as_str(), "green");
+    }
+
+    #[test]
+    fn test_i18n_model_formatting_id_and_en() {
+        let accounts = vec![
+            app_core::AccountEntry {
+                name: "chrome:Default".into(),
+                email: "a@gmail.com".into(),
+                source: "chrome".into(),
+                profile: "Default".into(),
+                priority: 1,
+                available: true,
+                busy: false,
+                cooling_down: false,
+                cooldown_secs: 0,
+                last_error: String::new(),
+            },
+            app_core::AccountEntry {
+                name: "edge:Default".into(),
+                email: "b@gmail.com".into(),
+                source: "edge".into(),
+                profile: "Default".into(),
+                priority: 2,
+                available: false,
+                busy: false,
+                cooling_down: true,
+                cooldown_secs: 45,
+                last_error: "429 rate limit".into(),
+            },
+        ];
+
+        let id_keys = vault_keys_from_for(app_core::AppLang::Id, &accounts);
+        assert_eq!(id_keys[0].status_text.as_str(), "Utama · Siap");
+        assert_eq!(id_keys[1].status_text.as_str(), "Limit (45d)");
+
+        let en_keys = vault_keys_from_for(app_core::AppLang::En, &accounts);
+        assert_eq!(en_keys[0].status_text.as_str(), "Primary · Ready");
+        assert_eq!(en_keys[1].status_text.as_str(), "Rate limit (45s)");
+
+        let dead = app_core::AccountTestResult {
+            ok: false,
+            name: "edge:Default".into(),
+            latency_ms: None,
+            reply: None,
+            error: Some("40003 invalid token".into()),
+        };
+        assert_eq!(
+            format_key_test_badge_for(app_core::AppLang::En, &dead).0,
+            "Expired token"
+        );
+
+        let topic_list = vec![app_core::TopicItem {
+            id: 1,
+            name: "Demo".into(),
+            category: "dev".into(),
+            created_at: "2026-11-20T09:15:00Z".into(),
+        }];
+        let en_topics = topics_from_for(app_core::AppLang::En, &topic_list, None, &|_| 1);
+        assert_eq!(en_topics[0].count.as_str(), "1 message");
+        let en_pending = pending_topic_for(app_core::AppLang::En, "New", "");
+        assert_eq!(en_pending.count.as_str(), "0 messages");
+        assert_eq!(en_pending.when.as_str(), "Just now");
+        let en_cats = topic_categories_for(app_core::AppLang::En, &en_topics, "");
+        assert_eq!(en_cats[0].name.as_str(), "All");
+        assert!(en_cats[0].active);
+
+        let body = "### Title\n\nParagraph text.\n\n```rust\nlet x = 1;\n```";
+        let segs = partial_copy_segments_for(app_core::AppLang::En, body, true);
+        assert_eq!(segs[0].kind.as_str(), "Heading");
+        assert_eq!(segs[1].kind.as_str(), "Paragraph");
+        assert_eq!(segs[2].kind.as_str(), "Code (rust)");
     }
 }

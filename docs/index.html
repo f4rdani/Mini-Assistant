@@ -903,6 +903,10 @@
       overflow: hidden;
       cursor: zoom-in;
     }
+    .shot-card.shot-featured {
+      grid-column: 1 / -1;
+      border-color: rgba(255, 143, 177, 0.36);
+    }
     .shot-card.hidden { display: none; }
     .shot-media {
       position: relative;
@@ -914,6 +918,10 @@
       padding: 12px;
       overflow: hidden;
       border-bottom: 1px solid rgba(60, 232, 255, 0.12);
+    }
+    .shot-card.shot-featured .shot-media {
+      aspect-ratio: 16 / 8.6;
+      padding: 14px;
     }
     .shot-media img {
       max-width: 100%;
@@ -1356,6 +1364,7 @@
       .features-grid,
       .why-pills,
       .steps-grid { grid-template-columns: 1fr; }
+      .shot-card.shot-featured .shot-media { aspect-ratio: 16 / 9; padding: 8px; }
       .bar-row { grid-template-columns: 1fr; gap: 6px; }
       .bar-val { text-align: left; }
       .mascot-float { position: static; width: 100%; margin-top: 16px; }
@@ -1390,7 +1399,7 @@
           <button type="button" class="lang-btn active" data-lang="id">ID</button>
           <button type="button" class="lang-btn" data-lang="en">EN</button>
         </div>
-        <a id="topDownloadLink" href="https://github.com/f4rdani/Mini-Assistant/releases/latest" target="_blank" rel="noopener" class="btn-primary">
+        <a id="topDownloadLink" href="https://github.com/f4rdani/Mini-Assistant/releases/latest/download/Mini-Assistant-Portable.zip" target="_blank" rel="noopener" class="btn-primary">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span data-i18n="nav_cta">Unduh Portable</span>
         </a>
@@ -1407,7 +1416,7 @@
         <div>
           <div class="hero-pill">
             <span class="pulse-dot"></span>
-            <span data-i18n="hero_badge">v1.0 Portable · Rust + Slint · 0 WebView · 0 Terminal</span>
+            <span data-i18n="hero_badge">v1.1.0 Portable · Rust + Slint · 0 WebView · 0 Terminal</span>
           </div>
 
           <h1 class="hero-title">
@@ -1416,13 +1425,13 @@
           </h1>
 
           <p class="hero-desc" data-i18n="hero_desc">
-            Companion AI desktop native untuk Windows dengan tema Startorch Academy × Aemeath. Hadir dalam 1 file portable (UI + Embedded API Server), overlay HUD kaca Acrylic di atas game, Translate This Screen, Vision, dan konsumsi RAM serendah 3,5 MB.
+            Companion AI desktop native untuk Windows dengan tema Startorch Academy × Aemeath. Hadir dalam 1 file portable (UI + Embedded API Server), overlay HUD kaca Acrylic di atas game, Translate This Screen real-time dengan auto-scroll 60 FPS, Vision, switch bahasa ID / EN, dan konsumsi RAM serendah 3,5 MB.
           </p>
 
           <div class="hero-cta">
-            <a id="heroDownloadLink" href="https://github.com/f4rdani/Mini-Assistant/releases/latest" target="_blank" rel="noopener" class="btn-primary">
+            <a id="heroDownloadLink" href="https://github.com/f4rdani/Mini-Assistant/releases/latest/download/Mini-Assistant-Portable.zip" target="_blank" rel="noopener" class="btn-primary">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span data-i18n="hero_cta_dl">Unduh Portable (.zip · 9.59 MB)</span>
+              <span data-i18n="hero_cta_dl">Unduh v1.1.0 Portable (.zip · 9.64 MB)</span>
             </a>
             <a id="heroRepoLink" href="https://github.com/f4rdani/Mini-Assistant" target="_blank" rel="noopener" class="btn-holo">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.82.58A12 12 0 0 0 12 .5z"/></svg>
@@ -1440,7 +1449,7 @@
               <span class="lbl" data-i18n="spec_cpu">CPU Idle</span>
             </div>
             <div class="spec-chip pink">
-              <span class="val">15.54 MB</span>
+              <span class="val">15.67 MB</span>
               <span class="lbl" data-i18n="spec_exe">Single .exe</span>
             </div>
             <div class="spec-chip gold">
@@ -1515,8 +1524,8 @@
           </div>
           <div class="glass-card kpi-card gold">
             <div class="kpi-label"><span data-i18n="kpi_size_lbl">Ukuran Paket Portable</span><span>DISK</span></div>
-            <div class="kpi-val">15.54 MB</div>
-            <div class="kpi-note" data-i18n="kpi_size_note">MiniAssistant.exe · ZIP hanya 9.59 MB</div>
+            <div class="kpi-val">15.67 MB</div>
+            <div class="kpi-note" data-i18n="kpi_size_note">MiniAssistant.exe · ZIP hanya 9.64 MB</div>
           </div>
         </div>
 
@@ -1629,12 +1638,23 @@
         </div>
 
         <div class="gallery-filters" id="galleryFilters">
-          <button type="button" class="filter-btn active" data-filter="all" data-i18n="flt_all">Semua (8)</button>
-          <button type="button" class="filter-btn" data-filter="overlay" data-i18n="flt_overlay">Floating HUD &amp; Mascot (4)</button>
+          <button type="button" class="filter-btn active" data-filter="all" data-i18n="flt_all">Semua (9)</button>
+          <button type="button" class="filter-btn" data-filter="overlay" data-i18n="flt_overlay">Floating HUD &amp; Mascot (5)</button>
           <button type="button" class="filter-btn" data-filter="panel" data-i18n="flt_panel">Control Panel (4)</button>
         </div>
 
         <div class="gallery-grid" id="galleryGrid">
+          <article class="glass-card shot-card shot-featured" data-cat="overlay" data-lightbox-index="8">
+            <div class="shot-media">
+              <span class="shot-tag">LIVE IN-GAME · ALT+T</span>
+              <img src="assets/screenshots/showcase-translate-ingame.jpg" alt="Showcase Translate Dialog Game Real-Time" loading="lazy" />
+            </div>
+            <div class="shot-body">
+              <h3 class="shot-title" data-i18n="shot_8_t">Showcase Nyata: Translate Dialog Game Real-Time (Alt+T)</h3>
+              <p class="shot-desc" data-i18n="shot_8_d">Aemeath menempel halus di tepi layar saat bermain dan menerjemahkan dialog Inggris ke Bahasa Indonesia secara instan — dilengkapi auto-scroll 60 FPS stop-and-glide saat teks panjang.</p>
+            </div>
+          </article>
+
           <article class="glass-card shot-card" data-cat="overlay" data-lightbox-index="0">
             <div class="shot-media">
               <span class="shot-tag">FLOATING HUD</span>
@@ -1753,18 +1773,18 @@
             <div class="feat-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </div>
-            <h3 data-i18n="f2_t">Translate This Screen &amp; Vision</h3>
-            <p data-i18n="f2_d">Tekan Alt+T untuk menangkap jendela aktif (otomatis menyembunyikan HUD) dan menerjemahkan teks layar ke speech bubble. Mendukung memori gambar antar-turn.</p>
-            <div class="feat-tags"><span class="mini-tag">Alt+T</span><span class="mini-tag">Win32 Capture</span><span class="mini-tag">Multi-Turn Vision</span></div>
+            <h3 data-i18n="f2_t">Translate Screen + Auto-Scroll 60 FPS</h3>
+            <p data-i18n="f2_d">Tekan Alt+T untuk menangkap jendela aktif langsung ke speech bubble maskot, dilengkapi auto-scroll halus 60 FPS stop-and-glide sesuai kecepatan baca manusia (Slow/Normal/Fast), jeda saat hover, dan menyerah penuh ke scroll manual.</p>
+            <div class="feat-tags"><span class="mini-tag">Alt+T</span><span class="mini-tag">Stop-and-Glide 60FPS</span><span class="mini-tag">Multi-Turn Vision</span></div>
           </div>
 
           <div class="glass-card feat-card emerald">
             <div class="feat-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             </div>
-            <h3 data-i18n="f3_t">Multi-Browser Vault &amp; Auto-Failover</h3>
-            <p data-i18n="f3_d">Ekstraksi token sesi otomatis dari LevelDB Chrome &amp; Microsoft Edge lengkap dengan verifikasi live, Priority-First Key Pool, dan failover otomatis saat limit.</p>
-            <div class="feat-tags"><span class="mini-tag">Chrome &amp; Edge</span><span class="mini-tag">LevelDB Reader</span><span class="mini-tag">Priority Pool</span></div>
+            <h3 data-i18n="f3_t">Cookie Persistensi Atomik &amp; Auto-Sync</h3>
+            <p data-i18n="f3_d">Ekstraksi sesi LevelDB Chrome &amp; Edge dengan auto-sync saat startup, penyimpanan atomik + cadangan .bak tahan korup, Priority-First Key Pool, dan auto-refresh transparan saat token dirotasi.</p>
+            <div class="feat-tags"><span class="mini-tag">Auto-Sync Startup</span><span class="mini-tag">Atomic + .bak</span><span class="mini-tag">Priority Pool</span></div>
           </div>
 
           <div class="glass-card feat-card gold">
@@ -1789,18 +1809,18 @@
             <div class="feat-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <h3 data-i18n="f6_t">1-Click Portable Single Binary</h3>
-            <p data-i18n="f6_d">Tanpa skrip .bat, tanpa jendela CMD/terminal, tanpa installer. Cukup klik ganda MiniAssistant.exe — server API menyala in-process dan data tersimpan di folder data/.</p>
-            <div class="feat-tags"><span class="mini-tag">WINDOWS_GUI</span><span class="mini-tag">Single-Instance</span><span class="mini-tag">100% Portable</span></div>
+            <h3 data-i18n="f6_t">1-Click Portable + Switch Bahasa ID / EN</h3>
+            <p data-i18n="f6_d">Tanpa skrip .bat dan tanpa terminal — cukup klik ganda MiniAssistant.exe. Mendukung switch bahasa antarmuka Bahasa Indonesia / English secara live pada Panel, HUD, dan Bubble serta tersimpan otomatis di data/.</p>
+            <div class="feat-tags"><span class="mini-tag">WINDOWS_GUI</span><span class="mini-tag">ID / EN Live</span><span class="mini-tag">100% Portable</span></div>
           </div>
         </div>
 
         <div class="glass-card roadmap-strip">
           <div>
-            <strong data-i18n="rm_title">✦ Roadmap Pembaruan Berikutnya: Switch Bahasa Aplikasi (ID / EN)</strong>
-            <p data-i18n="rm_desc">Fitur ganti bahasa langsung di dalam aplikasi desktop (Bahasa Indonesia &amp; English) serta perluasan dukungan provider modular sedang disiapkan untuk rilis mendatang.</p>
+            <strong data-i18n="rm_title">✦ Baru di v1.1.0: Switch Bahasa ID/EN, Auto-Scroll 60 FPS &amp; Cookie Auto-Sync</strong>
+            <p data-i18n="rm_desc">Kini hadir dengan switch bahasa in-app langsung (ID / EN), auto-scroll bubble irama stop-and-glide 60 FPS sesuai kecepatan baca, serta persistensi cookie atomik .bak dengan auto-sync startup tanpa perlu ambil cookie ulang.</p>
           </div>
-          <span class="roadmap-badge" data-i18n="rm_badge">SEGERA HADIR · v1.1</span>
+          <span class="roadmap-badge" data-i18n="rm_badge">BARU · v1.1.0</span>
         </div>
       </div>
     </section>
@@ -1824,18 +1844,18 @@
             <h3 data-i18n="arch_rel_t">1 File MiniAssistant.exe (Embedded API)</h3>
             <p data-i18n="arch_rel_d">Server API Axum tertanam in-process pada Tokio runtime yang sama — 0 terminal, 0 proses yatim, boot instan.</p>
             <div class="arch-flow">
-              <div class="arch-box"><code>MiniAssistant.exe</code><span data-i18n="arch_r1">Slint UI + Embedded Axum API (15.54 MB)</span></div>
+              <div class="arch-box"><code>MiniAssistant.exe</code><span data-i18n="arch_r1">Slint UI + Embedded Axum API (15.67 MB)</span></div>
               <div class="arch-arrow">↓ in-process (0 IPC, shared Tokio runtime)</div>
               <div class="arch-box"><code>./assets/</code><span data-i18n="arch_r2">42 file sprite Aemeath, logo &amp; musik (1.68 MB)</span></div>
               <div class="arch-arrow">↓ 100% portable local storage</div>
-              <div class="arch-box"><code>./data/</code><span data-i18n="arch_r3">mini_assistant.db + accounts.json + cache</span></div>
+              <div class="arch-box"><code>./data/</code><span data-i18n="arch_r3">mini_assistant.db + accounts.json (.bak) + cache</span></div>
             </div>
           </div>
 
           <div class="glass-card arch-card">
             <span class="arch-badge dev" data-i18n="arch_dev_b">DEVELOPMENT MODE (MODULAR)</span>
             <h3 data-i18n="arch_dev_t">3 Crate Rust Terpisah &amp; Independen</h3>
-            <p data-i18n="arch_dev_d">Setiap lapisan memiliki tanggung jawab tegas dan unit test mandiri (70+ automated tests + 32 interactive UI tests).</p>
+            <p data-i18n="arch_dev_d">Setiap lapisan memiliki tanggung jawab tegas dan pengujian otomatis terpadu (86 unit tests + 35 interactive UI tests).</p>
             <div class="arch-flow">
               <div class="arch-box"><code>ui-native/</code><span data-i18n="arch_d1">Slint UI (HUD, Bubble, Panel) + Win32/WASAPI</span></div>
               <div class="arch-arrow">↓ direct Rust library call</div>
@@ -1872,7 +1892,7 @@
               <div class="step-item">
                 <span class="step-num">1</span>
                 <h4 data-i18n="p1_t">Unduh &amp; Ekstrak ZIP</h4>
-                <p data-i18n="p1_d">Unduh Mini-Assistant-Portable.zip (9.59 MB) dari halaman GitHub Releases lalu ekstrak ke folder pilihan Anda.</p>
+                <p data-i18n="p1_d">Unduh Mini-Assistant-Portable.zip (9.64 MB) dari halaman GitHub Releases lalu ekstrak ke folder pilihan Anda.</p>
               </div>
               <div class="step-item">
                 <span class="step-num">2</span>
@@ -1881,14 +1901,14 @@
               </div>
               <div class="step-item">
                 <span class="step-num">3</span>
-                <h4 data-i18n="p3_t">Ambil Sesi Chrome / Edge</h4>
-                <p data-i18n="p3_d">Buka Pengaturan → Browser &amp; Cookies lalu klik "Ambil Semua Browser" untuk langsung mulai chat &amp; vision.</p>
+                <h4 data-i18n="p3_t">Auto-Sync Sesi Chrome / Edge</h4>
+                <p data-i18n="p3_d">Sesi login Chrome/Edge otomatis disinkronkan saat startup (atau klik "Ambil Semua Browser" di Pengaturan) untuk langsung memakai chat, translate, &amp; vision.</p>
               </div>
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:12px;">
               <a href="https://github.com/f4rdani/Mini-Assistant/releases/latest" target="_blank" rel="noopener" class="btn-primary">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <span data-i18n="qs_dl_btn">Buka GitHub Releases</span>
+                <span data-i18n="qs_dl_btn">Buka GitHub Releases (v1.1.0)</span>
               </a>
               <a href="https://github.com/f4rdani/Mini-Assistant" target="_blank" rel="noopener" class="btn-holo" data-i18n="qs_src_btn">Jelajahi Source Code</a>
             </div>
@@ -1950,7 +1970,7 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
       <div class="lightbox-top">
         <span class="lightbox-title" id="lbTitle">Preview</span>
         <div class="lightbox-controls">
-          <span style="font-family:var(--font-mono); font-size:0.78rem; color:var(--st-text-dim);" id="lbCounter">1 / 7</span>
+          <span style="font-family:var(--font-mono); font-size:0.78rem; color:var(--st-text-dim);" id="lbCounter">1 / 9</span>
           <button type="button" class="lb-btn" id="lbPrev" aria-label="Previous">←</button>
           <button type="button" class="lb-btn" id="lbNext" aria-label="Next">→</button>
           <button type="button" class="lb-btn" id="lbClose" aria-label="Close">✕</button>
@@ -2056,9 +2076,9 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         nav_arch: "Arsitektur",
         nav_download: "Unduh",
         nav_cta: "Unduh Portable",
-        hero_badge: "v1.0 Portable · Rust + Slint · 0 WebView · 0 Terminal",
-        hero_desc: "Companion AI desktop native untuk Windows dengan tema Startorch Academy × Aemeath. Hadir dalam 1 file portable (UI + Embedded API Server), overlay HUD kaca Acrylic di atas game, Translate This Screen, Vision, dan konsumsi RAM serendah 3,5 MB.",
-        hero_cta_dl: "Unduh Portable (.zip · 9.59 MB)",
+        hero_badge: "v1.1.0 Portable · Rust + Slint · 0 WebView · 0 Terminal",
+        hero_desc: "Companion AI desktop native untuk Windows dengan tema Startorch Academy × Aemeath. Hadir dalam 1 file portable (UI + Embedded API Server), overlay HUD kaca Acrylic di atas game, Translate This Screen real-time dengan auto-scroll 60 FPS, Vision, switch bahasa ID / EN, dan konsumsi RAM serendah 3,5 MB.",
+        hero_cta_dl: "Unduh v1.1.0 Portable (.zip · 9.64 MB)",
         hero_cta_gh: "Lihat di GitHub",
         spec_ram: "RAM Idle (WS)",
         spec_cpu: "CPU Idle",
@@ -2076,7 +2096,7 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         kpi_cpu_lbl: "CPU Rata-rata Idle",
         kpi_cpu_note: "HUD 0.07% · Panel 0.09% (12-core)",
         kpi_size_lbl: "Ukuran Paket Portable",
-        kpi_size_note: "MiniAssistant.exe · ZIP hanya 9.59 MB",
+        kpi_size_note: "MiniAssistant.exe · ZIP hanya 9.64 MB",
         chart_title: "Kurva Sampling Nyata (t = 1s → 10s)",
         mode_bubble: "Bubble Idle",
         mode_hud: "Floating HUD",
@@ -2107,8 +2127,8 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         gal_kicker: "GALERI ANTARMUKA ASLI",
         gal_title: "Tangkapan Layar UI Release Terbaru",
         gal_sub: "Seluruh tangkapan layar diambil langsung dari build release Windows (tanpa mockup). Klik gambar mana pun untuk melihat detail resolusi penuh.",
-        flt_all: "Semua (8)",
-        flt_overlay: "Floating HUD & Mascot (4)",
+        flt_all: "Semua (9)",
+        flt_overlay: "Floating HUD & Mascot (5)",
         flt_panel: "Control Panel (4)",
         shot_0_t: "Floating HUD & Rich Markdown",
         shot_0_d: "Overlay kaca Acrylic di atas game dengan heading, checklist, blockquote cyan, tabel, dan code block siap salin.",
@@ -2126,36 +2146,38 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         shot_6_d: "Kartu metrik live Penggunaan RAM (8.0 MB), Penggunaan CPU, Latensi API, 100% Local, plus uji koneksi terisolasi per-key.",
         shot_7_t: "Pengaturan Hotkey, Translate & Singing",
         shot_7_d: "Kustomisasi pintasan global HUD, Translate Layar & bahasa target, preferensi Random Singing, serta Guard RAM ≥ 85%.",
+        shot_8_t: "Showcase Nyata: Translate Dialog Game Real-Time (Alt+T)",
+        shot_8_d: "Aemeath menempel halus di tepi layar saat bermain dan menerjemahkan dialog Inggris ke Bahasa Indonesia secara instan — dilengkapi auto-scroll 60 FPS stop-and-glide saat teks panjang.",
         feat_kicker: "KAPABILITAS UTAMA",
         feat_title: "Dibangun untuk Kecepatan, Privasi & Kenyamanan",
         feat_sub: "Dirancang khusus sebagai companion harian maupun overlay di atas game borderless — cepat dipanggil, kaya format, dan 100% tersimpan lokal.",
         f1_t: "Floating HUD & Auto Window Context",
         f1_d: "Panggil overlay kaca DWM Acrylic secara instan dengan hotkey global. Judul & kategori sesi otomatis mengikuti jendela aktif seperti [Game] atau [Dev].",
-        f2_t: "Translate This Screen & Vision",
-        f2_d: "Tekan Alt+T untuk menangkap jendela aktif (otomatis menyembunyikan HUD) dan menerjemahkan teks layar ke speech bubble. Mendukung memori gambar antar-turn.",
-        f3_t: "Multi-Browser Vault & Auto-Failover",
-        f3_d: "Ekstraksi token sesi otomatis dari LevelDB Chrome & Microsoft Edge lengkap dengan verifikasi live, Priority-First Key Pool, dan failover otomatis saat limit.",
+        f2_t: "Translate Screen + Auto-Scroll 60 FPS",
+        f2_d: "Tekan Alt+T untuk menangkap jendela aktif langsung ke speech bubble maskot, dilengkapi auto-scroll halus 60 FPS stop-and-glide sesuai kecepatan baca manusia (Slow/Normal/Fast), jeda saat hover, dan menyerah penuh ke scroll manual.",
+        f3_t: "Cookie Persistensi Atomik & Auto-Sync",
+        f3_d: "Ekstraksi sesi LevelDB Chrome & Edge dengan auto-sync saat startup, penyimpanan atomik + cadangan .bak tahan korup, Priority-First Key Pool, dan auto-refresh transparan saat token dirotasi.",
         f4_t: "Rich Markdown, Reasoning & Web Search",
         f4_d: "Menampilkan penalaran model (Berpikir selama N detik), sitasi pencarian web interaktif, tabel lebar, blok kode siap salin, emoji Direct2D, dan SVG lightbox.",
         f5_t: "Random Singing & Guard RAM ≥ 85%",
         f5_d: "Saat Bubble idle, Aemeath dapat bernyanyi dengan sprite animasi, not musik ♪♫, dan audio jernih Media Foundation + WASAPI — otomatis berhenti saat RAM ≥ 85%.",
-        f6_t: "1-Click Portable Single Binary",
-        f6_d: "Tanpa skrip .bat, tanpa jendela CMD/terminal, tanpa installer. Cukup klik ganda MiniAssistant.exe — server API menyala in-process dan data tersimpan di folder data/.",
-        rm_title: "✦ Roadmap Pembaruan Berikutnya: Switch Bahasa Aplikasi (ID / EN)",
-        rm_desc: "Fitur ganti bahasa langsung di dalam aplikasi desktop (Bahasa Indonesia & English) serta perluasan dukungan provider modular sedang disiapkan untuk rilis mendatang.",
-        rm_badge: "SEGERA HADIR · v1.1",
+        f6_t: "1-Click Portable + Switch Bahasa ID / EN",
+        f6_d: "Tanpa skrip .bat dan tanpa terminal — cukup klik ganda MiniAssistant.exe. Mendukung switch bahasa antarmuka Bahasa Indonesia / English secara live pada Panel, HUD, dan Bubble serta tersimpan otomatis di data/.",
+        rm_title: "✦ Baru di v1.1.0: Switch Bahasa ID/EN, Auto-Scroll 60 FPS & Cookie Auto-Sync",
+        rm_desc: "Kini hadir dengan switch bahasa in-app langsung (ID / EN), auto-scroll bubble irama stop-and-glide 60 FPS sesuai kecepatan baca, serta persistensi cookie atomik .bak dengan auto-sync startup tanpa perlu ambil cookie ulang.",
+        rm_badge: "BARU · v1.1.0",
         arch_kicker: "ARSITEKTUR SISTEM",
         arch_title: "Bersih untuk Pengguna, Modular untuk Developer",
         arch_sub: "Satu basis kode Rust yang melayani dua kebutuhan: paket single-binary ultra-ringkas untuk pengguna akhir, serta 3 crate modular terpisah untuk pengembangan cepat.",
         arch_rel_b: "CONSUMER PORTABLE RELEASE",
         arch_rel_t: "1 File MiniAssistant.exe (Embedded API)",
         arch_rel_d: "Server API Axum tertanam in-process pada Tokio runtime yang sama — 0 terminal, 0 proses yatim, boot instan.",
-        arch_r1: "Slint UI + Embedded Axum API (15.54 MB)",
+        arch_r1: "Slint UI + Embedded Axum API (15.67 MB)",
         arch_r2: "42 file sprite Aemeath, logo & musik (1.68 MB)",
-        arch_r3: "mini_assistant.db + accounts.json + cache",
+        arch_r3: "mini_assistant.db + accounts.json (.bak) + cache",
         arch_dev_b: "DEVELOPMENT MODE (MODULAR)",
         arch_dev_t: "3 Crate Rust Terpisah & Independen",
-        arch_dev_d: "Setiap lapisan memiliki tanggung jawab tegas dan unit test mandiri (70+ automated tests + 32 interactive UI tests).",
+        arch_dev_d: "Setiap lapisan memiliki tanggung jawab tegas dan pengujian otomatis terpadu (86 unit tests + 35 interactive UI tests).",
         arch_d1: "Slint UI (HUD, Bubble, Panel) + Win32/WASAPI",
         arch_d2: "LevelDB/Cookie, SQLite, Capture, Hotkey, Metrics",
         arch_d3: "Standalone API Server (PoW, SSE, Vision, Pool)",
@@ -2165,12 +2187,12 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         qs_tab_p: "Pengguna Portable (1-Klik)",
         qs_tab_s: "Developer (Build dari Source)",
         p1_t: "Unduh & Ekstrak ZIP",
-        p1_d: "Unduh Mini-Assistant-Portable.zip (9.59 MB) dari halaman GitHub Releases lalu ekstrak ke folder pilihan Anda.",
+        p1_d: "Unduh Mini-Assistant-Portable.zip (9.64 MB) dari halaman GitHub Releases lalu ekstrak ke folder pilihan Anda.",
         p2_t: "Klik Ganda MiniAssistant.exe",
         p2_d: "Floating HUD & API Server langsung aktif otomatis tanpa terminal dan tanpa perlu file .bat.",
-        p3_t: "Ambil Sesi Chrome / Edge",
-        p3_d: "Buka Pengaturan → Browser & Cookies lalu klik \"Ambil Semua Browser\" untuk langsung mulai chat & vision.",
-        qs_dl_btn: "Buka GitHub Releases",
+        p3_t: "Auto-Sync Sesi Chrome / Edge",
+        p3_d: "Sesi login Chrome/Edge otomatis disinkronkan saat startup (atau klik \"Ambil Semua Browser\" di Pengaturan) untuk langsung memakai chat, translate, & vision.",
+        qs_dl_btn: "Buka GitHub Releases (v1.1.0)",
         qs_src_btn: "Jelajahi Source Code",
         btn_copy: "Salin",
         btn_copied: "Disalin!",
@@ -2183,9 +2205,9 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         nav_arch: "Architecture",
         nav_download: "Download",
         nav_cta: "Download Portable",
-        hero_badge: "v1.0 Portable · Rust + Slint · 0 WebView · 0 Terminal",
-        hero_desc: "A native Windows AI desktop companion styled with Startorch Academy × Aemeath. Ships as a single portable executable (UI + Embedded API Server) with an Acrylic game overlay HUD, Screen Translate, Vision, and idle RAM down to 3.5 MB.",
-        hero_cta_dl: "Download Portable (.zip · 9.59 MB)",
+        hero_badge: "v1.1.0 Portable · Rust + Slint · 0 WebView · 0 Terminal",
+        hero_desc: "A native Windows AI desktop companion styled with Startorch Academy × Aemeath. Ships as a single portable executable (UI + Embedded API Server) with an Acrylic game overlay HUD, real-time Screen Translate with 60 FPS smooth auto-scroll, Vision, live ID / EN switching, and idle RAM down to 3.5 MB.",
+        hero_cta_dl: "Download v1.1.0 Portable (.zip · 9.64 MB)",
         hero_cta_gh: "View on GitHub",
         spec_ram: "Idle RAM (WS)",
         spec_cpu: "Idle CPU",
@@ -2203,7 +2225,7 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         kpi_cpu_lbl: "Average Idle CPU",
         kpi_cpu_note: "HUD 0.07% · Panel 0.09% (12-core)",
         kpi_size_lbl: "Portable Package Size",
-        kpi_size_note: "MiniAssistant.exe · ZIP is just 9.59 MB",
+        kpi_size_note: "MiniAssistant.exe · ZIP is just 9.64 MB",
         chart_title: "Live Sampling Curve (t = 1s → 10s)",
         mode_bubble: "Bubble Idle",
         mode_hud: "Floating HUD",
@@ -2234,8 +2256,8 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         gal_kicker: "REAL UI SHOWCASE",
         gal_title: "Latest Release Screenshots",
         gal_sub: "Every screenshot is captured directly from the live Windows release build (no mockups). Click any card to inspect full resolution.",
-        flt_all: "All (8)",
-        flt_overlay: "Floating HUD & Mascot (4)",
+        flt_all: "All (9)",
+        flt_overlay: "Floating HUD & Mascot (5)",
         flt_panel: "Control Panel (4)",
         shot_0_t: "Floating HUD & Rich Markdown",
         shot_0_d: "DWM Acrylic glass overlay above games with headings, checklists, cyan blockquotes, tables, and copyable code blocks.",
@@ -2253,36 +2275,38 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         shot_6_d: "Live RAM (8.0 MB), CPU, API latency, and 100% Local metric cards alongside isolated per-key connection testing.",
         shot_7_t: "Settings: Hotkeys, Translate & Singing",
         shot_7_d: "Configure global HUD hotkeys, Screen Translate target language, Random Singing volume, and RAM ≥ 85% guard.",
+        shot_8_t: "Live Showcase: Real-Time In-Game Dialogue Translate (Alt+T)",
+        shot_8_d: "Aemeath docks cleanly on the screen edge during gameplay and translates English dialogue into natural Indonesian instantly — complete with 60 FPS stop-and-glide reading auto-scroll for long text.",
         feat_kicker: "CORE CAPABILITIES",
         feat_title: "Engineered for Speed, Privacy & Immersion",
         feat_sub: "Built as a daily desktop companion and borderless game overlay — instant hotkey access, rich output, and 100% local storage.",
         f1_t: "Floating HUD & Auto Window Context",
         f1_d: "Summon the DWM Acrylic glass overlay instantly via global hotkey. Session titles & categories adapt automatically to [Game] or [Dev] windows.",
-        f2_t: "Translate This Screen & Vision",
-        f2_d: "Press Alt+T to capture the active window (auto-hiding the HUD) and stream translations into the mascot bubble. Includes multi-turn image memory.",
-        f3_t: "Multi-Browser Vault & Auto-Failover",
-        f3_d: "Reads active tokens directly from Chrome & Microsoft Edge LevelDB with live verification, Priority-First Key Pool, and automatic rate-limit failover.",
+        f2_t: "Screen Translate + 60 FPS Auto-Scroll",
+        f2_d: "Press Alt+T to translate the active window straight into Aemeath's floating speech bubble, paced with silky 60 FPS stop-and-glide reading auto-scroll (Slow/Normal/Fast), hover pause, and instant manual scroll yield.",
+        f3_t: "Atomic Cookie Persistence & Auto-Sync",
+        f3_d: "Extracts Chrome & Microsoft Edge LevelDB sessions automatically on startup, persists atomically with crash-safe .bak recovery, runs Priority-First Key Pool, and refreshes expired tokens seamlessly.",
         f4_t: "Rich Markdown, Reasoning & Web Search",
         f4_d: "Displays collapsible model thinking, clickable web citations, wide tables, copyable code blocks, Direct2D color emojis, and SVG lightbox.",
         f5_t: "Random Singing & RAM ≥ 85% Guard",
         f5_d: "While the Bubble is idle, Aemeath sings with animated sprites, floating ♪♫ notes, and crisp Media Foundation + WASAPI audio — auto-pausing if RAM ≥ 85%.",
-        f6_t: "1-Click Portable Single Binary",
-        f6_d: "No .bat scripts, no console window, no installer. Double-click MiniAssistant.exe to boot UI + in-process API with portable storage under data/.",
-        rm_title: "✦ Upcoming Roadmap: In-App Language Switch (ID / EN)",
-        rm_desc: "Native in-app language switching (Indonesian & English) inside the desktop UI plus expanded modular provider support are planned for the next release.",
-        rm_badge: "COMING SOON · v1.1",
+        f6_t: "1-Click Portable + Live ID / EN Switch",
+        f6_d: "No .bat scripts, no console window, no installer. Double-click MiniAssistant.exe to boot UI + in-process API with portable storage under data/ and live Indonesian / English UI switching across all windows.",
+        rm_title: "✦ New in v1.1.0: Live ID/EN Switch, 60 FPS Auto-Scroll & Cookie Auto-Sync",
+        rm_desc: "Ships with live in-app ID/EN switching across all windows, smooth 60 FPS stop-and-glide bubble auto-scroll paced to human reading speed, and crash-safe atomic .bak cookie persistence with automatic startup sync.",
+        rm_badge: "NEW · v1.1.0",
         arch_kicker: "SYSTEM ARCHITECTURE",
         arch_title: "Clean for Users, Modular for Developers",
         arch_sub: "One Rust codebase powering both a zero-friction single-binary portable release and three cleanly separated modular crates for development.",
         arch_rel_b: "CONSUMER PORTABLE RELEASE",
         arch_rel_t: "Single MiniAssistant.exe (Embedded API)",
         arch_rel_d: "Axum API server embedded in-process on the shared Tokio runtime — zero terminal windows, zero orphan processes, instant boot.",
-        arch_r1: "Slint UI + Embedded Axum API (15.54 MB)",
+        arch_r1: "Slint UI + Embedded Axum API (15.67 MB)",
         arch_r2: "42 Aemeath sprites, logos & audio assets (1.68 MB)",
-        arch_r3: "mini_assistant.db + accounts.json + cache",
+        arch_r3: "mini_assistant.db + accounts.json (.bak) + cache",
         arch_dev_b: "DEVELOPMENT MODE (MODULAR)",
         arch_dev_t: "3 Independent Rust Crates",
-        arch_dev_d: "Strict separation of concerns with dedicated test suites (70+ automated unit/integration tests + 32 interactive UI tests).",
+        arch_dev_d: "Strict separation of concerns with dedicated test suites (86 automated unit/integration tests + 35 interactive UI tests).",
         arch_d1: "Slint UI (HUD, Bubble, Panel) + Win32/WASAPI",
         arch_d2: "LevelDB/Cookie, SQLite, Capture, Hotkey, Metrics",
         arch_d3: "Standalone API Server (PoW, SSE, Vision, Pool)",
@@ -2292,12 +2316,12 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
         qs_tab_p: "Portable User (1-Click)",
         qs_tab_s: "Developer (Build from Source)",
         p1_t: "Download & Unzip",
-        p1_d: "Grab Mini-Assistant-Portable.zip (9.59 MB) from GitHub Releases and extract it anywhere you like.",
+        p1_d: "Grab Mini-Assistant-Portable.zip (9.64 MB) from GitHub Releases and extract it anywhere you like.",
         p2_t: "Double-Click MiniAssistant.exe",
         p2_d: "Floating HUD and the embedded API server start immediately with zero terminal windows and no .bat script.",
-        p3_t: "Sync Chrome / Edge Session",
-        p3_d: "Open Settings → Browser & Cookies and click \"Fetch All Browsers\" to start chatting and using Vision right away.",
-        qs_dl_btn: "Open GitHub Releases",
+        p3_t: "Auto-Sync Chrome / Edge Session",
+        p3_d: "Your logged-in Chrome/Edge session syncs automatically on startup (or via Settings → Browser & Cookies) so chat, translate, and Vision work right away.",
+        qs_dl_btn: "Open GitHub Releases (v1.1.0)",
         qs_src_btn: "Browse Source Code",
         btn_copy: "Copy",
         btn_copied: "Copied!",
@@ -2313,7 +2337,8 @@ cargo run --manifest-path ui-native/Cargo.toml</pre>
       { src: "assets/screenshots/ui-panel-providers.png", tKey: "shot_4_t", dKey: "shot_4_d" },
       { src: "assets/screenshots/ui-panel-vault.png", tKey: "shot_5_t", dKey: "shot_5_d" },
       { src: "assets/screenshots/ui-panel-diagnostics.png", tKey: "shot_6_t", dKey: "shot_6_d" },
-      { src: "assets/screenshots/ui-panel-settings.png", tKey: "shot_7_t", dKey: "shot_7_d" }
+      { src: "assets/screenshots/ui-panel-settings.png", tKey: "shot_7_t", dKey: "shot_7_d" },
+      { src: "assets/screenshots/showcase-translate-ingame.jpg", tKey: "shot_8_t", dKey: "shot_8_d" }
     ];
 
     let currentLang = localStorage.getItem("ma-showcase-lang") === "en" ? "en" : "id";

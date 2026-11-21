@@ -12,6 +12,7 @@
 //! rasterization via `emoji.rs`) for crisp hinted fonts, true Win32 desktop
 //! per-pixel transparency on `HudWindow`/`BubbleWindow`, and <40 MB RAM.
 
+mod bubble_scroll;
 mod emoji;
 mod icons;
 mod logos;
@@ -53,8 +54,19 @@ thread_local! {
     // UI-thread hook to immediately stop singing playback & sprites on window
     // switches, AI tasks, or shutdown without threading controllers everywhere.
     static SING_STOP_HOOK: RefCell<Option<SingStopHook>> = const { RefCell::new(None) };
+    // UI-thread hook to reset the BubbleWindow human-paced auto-scroll state
+    // whenever bubble content starts, expands to HUD, or collapses.
+    static BUBBLE_SCROLL_RESET: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
     #[cfg(feature = "embedded-api")]
     static EMBEDDED_API: RefCell<Option<api_ai::EmbeddedServer>> = const { RefCell::new(None) };
+}
+
+fn reset_bubble_scroll_global() {
+    BUBBLE_SCROLL_RESET.with(|h| {
+        if let Some(cb) = h.borrow().as_ref().cloned() {
+            cb();
+        }
+    });
 }
 
 fn stop_singing_global(reschedule: bool) {
@@ -108,24 +120,9 @@ fn scroll_chat_to_bottom_deferred(h: &HudWindow) {
     }
 }
 
-fn scroll_bubble_to_bottom_deferred(b: &BubbleWindow) {
-    b.invoke_scroll_to_bottom();
-    for delay_ms in [16u64, 64] {
-        let weak = b.as_weak();
-        slint::Timer::single_shot(Duration::from_millis(delay_ms), move || {
-            if let Some(b) = weak.upgrade() {
-                b.invoke_scroll_to_bottom();
-            }
-        });
-    }
-}
-
-/// Updates the minimized speech bubble text during streaming and keeps it
-/// scrolled to the bottom when overflowing unless the user scrolled up.
+/// Updates the minimized speech bubble text during streaming while preserving the
+/// top reading position so `BubbleAutoScroll` paces downward movement dynamically.
 fn update_bubble_stream_text(bubble: &BubbleWindow, markdown: &str, done: bool) {
-    let max_y = bubble.get_trans_scroll_max();
-    let y = bubble.get_trans_scroll_y();
-    let should_follow = max_y < 40.0 || y >= max_y - 80.0;
     if !markdown.is_empty() && bubble.get_translate_text().as_str() != markdown {
         bubble.set_translate_text(markdown.into());
         bubble.set_translate_styled(model::styled(markdown));
@@ -134,9 +131,6 @@ fn update_bubble_stream_text(bubble: &BubbleWindow, markdown: &str, done: bool) 
         bubble.set_translate_busy(false);
     }
     sync_bubble_window_size(bubble);
-    if should_follow && bubble.get_translate_visible() {
-        scroll_bubble_to_bottom_deferred(bubble);
-    }
 }
 
 /// One worker-thread result for the diagnostics page.
@@ -209,8 +203,10 @@ fn refresh_sessions(
     let visible: Vec<TopicItem> = rows
         .into_iter()
         .filter(|r| {
-            let by_cat =
-                filter.cat.is_empty() || filter.cat == "Semua" || r.category == filter.cat;
+            let by_cat = filter.cat.is_empty()
+                || filter.cat == "Semua"
+                || filter.cat == "All"
+                || r.category == filter.cat;
             let by_text = q.is_empty()
                 || r.name.to_lowercase().contains(q.as_str())
                 || r.category.to_lowercase().contains(q.as_str());
@@ -238,9 +234,10 @@ fn load_topic(
         loaded
             .iter()
             .map(|m| {
-                let who = if m.role == "user" { "ANDA" } else { "AEMEATH" };
+                let user_who = app_core::tr("ANDA", "YOU");
+                let who = if m.role == "user" { user_who } else { "AEMEATH" };
                 if m.role == "user" {
-                    model::message("user", "ANDA", &m.content, &m.meta, false)
+                    model::message("user", user_who, &m.content, &m.meta, false)
                 } else {
                     let src_items: Vec<SearchSourceItem> = m
                         .sources
@@ -258,7 +255,7 @@ fn load_topic(
                     let think_label = if m.thought.is_empty() {
                         ""
                     } else {
-                        "Proses berpikir"
+                        app_core::tr("Proses berpikir", "Thinking process")
                     };
                     model::message_full(
                         &m.role,
@@ -323,7 +320,7 @@ fn start_new_session(
         .map(|w| app_core::topic_label(&w.suggested_topic))
         .filter(|s| !s.trim().is_empty())
         .map(|base| unique_topic(core, &base))
-        .unwrap_or_else(|| "Percakapan Baru".to_string());
+        .unwrap_or_else(|| app_core::tr("Percakapan Baru", "New Conversation").to_string());
     if let Some(w) = win {
         // The category travels with the name: the session card and its chip
         // come from the same window the title came from.
@@ -353,10 +350,22 @@ fn session_category(hud: &HudWindow) -> String {
     }
 }
 
-/// "1 DARI 1 AKTIF · GOOGLE CHROME" — one format for the boot state and every
-/// later toggle, so the header never changes wording mid-session.
+/// "1 DARI 1 AKTIF · GOOGLE CHROME" / "1 OF 1 ACTIVE · GOOGLE CHROME"
+fn provider_count_text_for(
+    lang: app_core::AppLang,
+    active: usize,
+    total: usize,
+    browser: &str,
+) -> String {
+    let b = browser.to_uppercase();
+    match lang {
+        app_core::AppLang::Id => format!("{active} DARI {total} AKTIF · {b}"),
+        app_core::AppLang::En => format!("{active} OF {total} ACTIVE · {b}"),
+    }
+}
+
 fn provider_count_text(active: usize, total: usize, browser: &str) -> String {
-    format!("{active} DARI {total} AKTIF · {}", browser.to_uppercase())
+    provider_count_text_for(app_core::current_lang(), active, total, browser)
 }
 
 fn color_to_hex(c: slint::Color) -> String {
@@ -365,19 +374,45 @@ fn color_to_hex(c: slint::Color) -> String {
 
 /// Formats the Browser & Cookies vault banner without misleading `0 cookie` counts
 /// when authentication succeeded via Chrome's unencrypted LocalStorage `userToken`.
-fn format_vault_fetch_status(report: &app_core::ConnectReport) -> String {
+fn format_vault_fetch_status_for(
+    lang: app_core::AppLang,
+    report: &app_core::ConnectReport,
+) -> String {
     if !report.success {
-        return format!("Gagal: {}", report.message);
+        return if lang.is_en() {
+            format!("Failed: {}", report.message)
+        } else {
+            format!("Gagal: {}", report.message)
+        };
     }
     if report.locked_v20 > 0 && report.cookies_found <= 1 {
-        format!(
-            "Terpasang: token sesi {} karakter dari LocalStorage {} · {} cookie terkunci v20.",
-            report.token_chars, report.browser, report.locked_v20
-        )
+        if lang.is_en() {
+            format!(
+                "Connected: {}-char session token from {} LocalStorage · {} v20-locked cookies.",
+                report.token_chars, report.browser, report.locked_v20
+            )
+        } else {
+            format!(
+                "Terpasang: token sesi {} karakter dari LocalStorage {} · {} cookie terkunci v20.",
+                report.token_chars, report.browser, report.locked_v20
+            )
+        }
     } else if report.cookies_found == 0 {
+        if lang.is_en() {
+            format!(
+                "Connected: {}-char session token from {} LocalStorage.",
+                report.token_chars, report.browser
+            )
+        } else {
+            format!(
+                "Terpasang: token sesi {} karakter dari LocalStorage {}.",
+                report.token_chars, report.browser
+            )
+        }
+    } else if lang.is_en() {
         format!(
-            "Terpasang: token sesi {} karakter dari LocalStorage {}.",
-            report.token_chars, report.browser
+            "Connected: {} cookies + {}-char token from {}.",
+            report.cookies_found, report.token_chars, report.browser
         )
     } else {
         format!(
@@ -387,9 +422,24 @@ fn format_vault_fetch_status(report: &app_core::ConnectReport) -> String {
     }
 }
 
-fn format_vault_fetch_all_status(reports: &[app_core::ConnectReport]) -> (bool, String) {
+fn format_vault_fetch_status(report: &app_core::ConnectReport) -> String {
+    format_vault_fetch_status_for(app_core::current_lang(), report)
+}
+
+fn format_vault_fetch_all_status_for(
+    lang: app_core::AppLang,
+    reports: &[app_core::ConnectReport],
+) -> (bool, String) {
     if reports.is_empty() {
-        return (false, "Tidak ada profil browser terdeteksi.".to_string());
+        return (
+            false,
+            app_core::tr_for(
+                lang,
+                "Tidak ada profil browser terdeteksi.",
+                "No browser profiles detected.",
+            )
+            .to_string(),
+        );
     }
     let ok_names: Vec<String> = reports
         .iter()
@@ -397,11 +447,23 @@ fn format_vault_fetch_all_status(reports: &[app_core::ConnectReport]) -> (bool, 
         .map(|r| r.browser.clone())
         .collect();
     if ok_names.is_empty() {
+        let fallback = app_core::tr_for(
+            lang,
+            "Tidak ditemukan sesi DeepSeek.",
+            "No DeepSeek session found.",
+        );
         let first_err = reports
             .first()
             .map(|r| r.message.as_str())
-            .unwrap_or("Tidak ditemukan sesi DeepSeek.");
-        return (false, format!("Gagal: {first_err}"));
+            .unwrap_or(fallback);
+        return (
+            false,
+            if lang.is_en() {
+                format!("Failed: {first_err}")
+            } else {
+                format!("Gagal: {first_err}")
+            },
+        );
     }
     let missed: Vec<String> = reports
         .iter()
@@ -411,22 +473,34 @@ fn format_vault_fetch_all_status(reports: &[app_core::ConnectReport]) -> (bool, 
     if missed.is_empty() {
         (
             true,
-            format!(
-                "Terpasang {} sesi dari {}.",
-                ok_names.len(),
-                ok_names.join(" & ")
-            ),
+            if lang.is_en() {
+                format!("Connected {} sessions from {}.", ok_names.len(), ok_names.join(" & "))
+            } else {
+                format!("Terpasang {} sesi dari {}.", ok_names.len(), ok_names.join(" & "))
+            },
         )
     } else {
         (
             true,
-            format!(
-                "Terpasang dari {} (belum ada sesi di {}).",
-                ok_names.join(", "),
-                missed.join(", ")
-            ),
+            if lang.is_en() {
+                format!(
+                    "Connected from {} (no session yet in {}).",
+                    ok_names.join(", "),
+                    missed.join(", ")
+                )
+            } else {
+                format!(
+                    "Terpasang dari {} (belum ada sesi di {}).",
+                    ok_names.join(", "),
+                    missed.join(", ")
+                )
+            },
         )
     }
+}
+
+fn format_vault_fetch_all_status(reports: &[app_core::ConnectReport]) -> (bool, String) {
+    format_vault_fetch_all_status_for(app_core::current_lang(), reports)
 }
 
 fn apply_active_browser(
@@ -443,7 +517,7 @@ fn apply_active_browser(
     let picked = profiles.get(idx);
     let browser_name = picked
         .map(|b| b.browser_name.clone())
-        .unwrap_or_else(|| "Tidak ada browser".to_string());
+        .unwrap_or_else(|| app_core::tr("Tidak ada browser", "No browser").to_string());
     let logo_idx = picked
         .map(|b| model::browser_logo_index(&b.browser_type))
         .unwrap_or(0)
@@ -455,7 +529,13 @@ fn apply_active_browser(
     let main_provider = panel.get_active_provider().to_string();
     panel.set_vault_badge(
         if profiles.is_empty() {
-            "TIDAK ADA BROWSER TERDETEKSI".to_string()
+            app_core::tr("TIDAK ADA BROWSER TERDETEKSI", "NO BROWSER DETECTED").to_string()
+        } else if app_core::is_en() {
+            format!(
+                "ACTIVE: {} · PRIMARY: {}",
+                browser_name.to_uppercase(),
+                main_provider.to_uppercase()
+            )
         } else {
             format!(
                 "AKTIF: {} · UTAMA: {}",
@@ -593,7 +673,7 @@ fn probe_single_key(
             let detail: String = res
                 .error
                 .as_deref()
-                .unwrap_or("Gagal menguji key")
+                .unwrap_or_else(|| app_core::tr("Gagal menguji key", "Failed to test key"))
                 .chars()
                 .take(120)
                 .collect();
@@ -647,7 +727,7 @@ fn demo_vault_keys() -> Vec<VaultKeyItem> {
             email: "demo.chrome@example.com".into(),
             source: "chrome".into(),
             profile: "Google Chrome (Default)".into(),
-            status_text: "Utama · Siap".into(),
+            status_text: app_core::tr("Utama · Siap", "Primary · Ready").into(),
             tone: "green".into(),
             is_primary: true,
             diag_text: "".into(),
@@ -659,13 +739,60 @@ fn demo_vault_keys() -> Vec<VaultKeyItem> {
             email: "demo.edge@example.com".into(),
             source: "edge".into(),
             profile: "Microsoft Edge (Personal)".into(),
-            status_text: "Cadangan · Siap".into(),
+            status_text: app_core::tr("Cadangan · Siap", "Backup · Ready").into(),
             tone: "cyan".into(),
             is_primary: false,
             diag_text: "".into(),
             diag_tone: "".into(),
         },
     ]
+}
+
+fn apply_app_language(
+    lang: app_core::AppLang,
+    panel: &MainPanel,
+    hud: &HudWindow,
+    bubble: &BubbleWindow,
+) {
+    app_core::set_lang(lang);
+    let code = lang.code();
+    I18n::get(panel).set_lang(code.into());
+    I18n::get(hud).set_lang(code.into());
+    I18n::get(bubble).set_lang(code.into());
+
+    let loading = bubble.get_loading_label();
+    if matches!(
+        loading.as_str(),
+        "" | "Menerjemahkan layar..." | "Translating screen..."
+    ) {
+        bubble.set_loading_label(
+            app_core::tr_for(lang, "Menerjemahkan layar...", "Translating screen...").into(),
+        );
+    } else if matches!(
+        loading.as_str(),
+        "Aemeath sedang berpikir..." | "Aemeath is thinking..."
+    ) {
+        bubble.set_loading_label(
+            app_core::tr_for(lang, "Aemeath sedang berpikir...", "Aemeath is thinking...").into(),
+        );
+    }
+
+    let diag = panel.get_diag_status();
+    if matches!(
+        diag.as_str(),
+        "" | "Menunggu pengujian..." | "Waiting for test..."
+    ) {
+        panel.set_diag_status(
+            app_core::tr_for(lang, "Menunggu pengujian...", "Waiting for test...").into(),
+        );
+    }
+
+    let topic = hud.get_current_topic();
+    if matches!(topic.as_str(), "Percakapan Baru" | "New Conversation") {
+        hud.set_current_topic(
+            app_core::tr_for(lang, "Percakapan Baru", "New Conversation").into(),
+        );
+    }
 }
 
 static SHUTTING_DOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -973,6 +1100,7 @@ fn trigger_bubble_translate(
 ) {
     *trans_stream_rx.borrow_mut() = None;
     *trans_deadline.borrow_mut() = None;
+    reset_bubble_scroll_global();
     if bubble.get_translate_visible() {
         collapse_bubble_translate(bubble);
     }
@@ -1025,7 +1153,9 @@ fn trigger_bubble_translate(
     let edge = bubble.get_edge().to_string();
 
     bubble.set_translate_lang(lang.into());
-    bubble.set_loading_label("Menerjemahkan layar...".into());
+    bubble.set_loading_label(
+        app_core::tr("Menerjemahkan layar...", "Translating screen...").into(),
+    );
     bubble.set_translate_visible(true);
     bubble.set_translate_text(SharedString::new());
     bubble.set_translate_styled(slint::StyledText::default());
@@ -1036,7 +1166,11 @@ fn trigger_bubble_translate(
         Ok(p) => p,
         Err(e) => {
             bubble.set_translate_busy(false);
-            let msg = format!("Gagal menjepret layar: {e}");
+            let msg = if app_core::is_en() {
+                format!("Failed to capture screen: {e}")
+            } else {
+                format!("Gagal menjepret layar: {e}")
+            };
             update_bubble_stream_text(bubble, &msg, true);
             *trans_deadline.borrow_mut() =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
@@ -1077,6 +1211,7 @@ fn trigger_bubble_translate(
 /// Hides the HUD/panel and opens the mascot bubble in its loading state so a
 /// normal chat answer can stream into it (same surface as screen translate).
 fn present_answer_bubble(hud: &HudWindow, panel: &MainPanel, bubble: &BubbleWindow) {
+    reset_bubble_scroll_global();
     let hud_was_visible = hud.window().is_visible();
     let bubble_was_visible = bubble.window().is_visible();
     let _ = bubble.show();
@@ -1095,7 +1230,9 @@ fn present_answer_bubble(hud: &HudWindow, panel: &MainPanel, bubble: &BubbleWind
     let _ = hud.hide();
     let _ = panel.hide();
     bubble.set_translate_visible(true);
-    bubble.set_loading_label("Aemeath sedang berpikir...".into());
+    bubble.set_loading_label(
+        app_core::tr("Aemeath sedang berpikir...", "Aemeath is thinking...").into(),
+    );
     bubble.set_translate_text(SharedString::new());
     bubble.set_translate_styled(slint::StyledText::default());
     bubble.invoke_scroll_to_top();
@@ -1107,6 +1244,14 @@ fn sync_bubble_window_size(bubble: &BubbleWindow) {
     let w = bubble.get_target_win_w().max(92.0);
     let h = bubble.get_target_win_h().max(92.0);
     let scale = bubble.window().scale_factor().max(0.1);
+    let want_w = (w * scale).round() as u32;
+    let want_h = (h * scale).round() as u32;
+    let cur = bubble.window().size();
+    let size_changed = cur.width.abs_diff(want_w) > 1 || cur.height.abs_diff(want_h) > 1;
+    if !size_changed {
+        bubble.window().request_redraw();
+        return;
+    }
     let bubble_hwnd = win32::find_window_by_title("Mini Assistant Bubble");
     let prev_rect = bubble_hwnd.and_then(win32::window_rect);
     let edge = bubble.get_edge().to_string();
@@ -1116,6 +1261,43 @@ fn sync_bubble_window_size(bubble: &BubbleWindow) {
         win32::reposition_bubble_after_resize(hwnd, prev_rect, expanded, &edge, w, h, scale);
     }
     bubble.window().request_redraw();
+}
+
+/// Advances `BubbleAutoScroll` by one tick against the live `BubbleWindow`,
+/// applying any requested scroll offset and auto-hide deadline.
+/// Returns `true` while actively gliding so the 60 FPS timer only runs during motion.
+fn tick_bubble_scroll_once(
+    bubble: &BubbleWindow,
+    scroll: &RefCell<bubble_scroll::BubbleAutoScroll>,
+    deadline_slot: &RefCell<Option<std::time::Instant>>,
+) -> bool {
+    if !bubble.get_translate_visible() {
+        scroll.borrow_mut().reset();
+        return false;
+    }
+    let hovered = bubble.get_translate_hovered() || bubble.get_held() || bubble.get_dragging();
+    let now = std::time::Instant::now();
+    let (out, animating) = {
+        let mut st = scroll.borrow_mut();
+        let out = st.tick(
+            now,
+            bubble.get_trans_scroll_y(),
+            bubble.get_trans_scroll_max(),
+            bubble.get_trans_viewport_h(),
+            bubble.get_trans_content_h(),
+            hovered,
+        );
+        (out, st.is_animating())
+    };
+    if let Some(y) = out.set_scroll_y {
+        bubble.invoke_set_trans_scroll_y(y);
+    }
+    if out.hold_deadline {
+        *deadline_slot.borrow_mut() = None;
+    } else if let Some(secs) = out.set_deadline_secs {
+        *deadline_slot.borrow_mut() = Some(now + std::time::Duration::from_secs_f32(secs));
+    }
+    animating
 }
 
 fn translate_timeout_duration(text: &str) -> std::time::Duration {
@@ -1128,6 +1310,7 @@ fn translate_timeout_duration(text: &str) -> std::time::Duration {
 }
 
 fn collapse_bubble_translate(bubble: &BubbleWindow) {
+    reset_bubble_scroll_global();
     let bubble_hwnd = win32::find_window_by_title("Mini Assistant Bubble");
     let prev_rect = bubble_hwnd.and_then(win32::window_rect);
     let edge = bubble.get_edge().to_string();
@@ -1789,12 +1972,9 @@ fn apply_chat_font(hud: &HudWindow, bubble: &BubbleWindow, panel: &MainPanel, px
     panel.set_font_size_px(px);
     panel.set_font_family_sel(family.into());
     if bubble.get_translate_visible() {
-        let max_y = bubble.get_trans_scroll_max();
-        let should_follow = max_y < 40.0 || bubble.get_trans_scroll_y() >= max_y - 80.0;
+        let prev_y = bubble.get_trans_scroll_y();
         sync_bubble_window_size(bubble);
-        if should_follow {
-            scroll_bubble_to_bottom_deferred(bubble);
-        }
+        bubble.invoke_set_trans_scroll_y(prev_y);
     }
     hud.window().request_redraw();
 }
@@ -2120,6 +2300,36 @@ fn main() -> Result<(), slint::PlatformError> {
     panel.set_sing_track_count(sing_ctrl.borrow().tracks.len() as i32);
     panel.set_sing_ram_pct(win32::memory_load_percent().unwrap_or(0) as i32);
 
+    let bubble_auto_scroll = setting_bool("bubble-auto-scroll", true);
+    let bubble_read_speed = core
+        .get_setting("bubble-read-speed")
+        .ok()
+        .flatten()
+        .as_deref()
+        .map(bubble_scroll::BubbleReadSpeed::from_code)
+        .unwrap_or(bubble_scroll::BubbleReadSpeed::Normal);
+    let bubble_scroll = Rc::new(RefCell::new(bubble_scroll::BubbleAutoScroll::new(
+        bubble_auto_scroll,
+        bubble_read_speed,
+    )));
+    let scroll_anim_timer = Rc::new(slint::Timer::default());
+    {
+        let bscroll_hook = bubble_scroll.clone();
+        let timer_hook = scroll_anim_timer.clone();
+        BUBBLE_SCROLL_RESET.with(|slot| {
+            *slot.borrow_mut() = Some(Rc::new(move || {
+                bscroll_hook.borrow_mut().reset();
+                timer_hook.stop();
+            }));
+        });
+    }
+    panel.set_set_bubble_auto_scroll(bubble_auto_scroll);
+    panel.set_bubble_read_speed(bubble_read_speed.code().into());
+
+    let auto_sync_cookies = setting_bool("auto-sync-cookies", true);
+    let vault_user_cleared = setting_bool("vault-user-cleared", false);
+    panel.set_set_auto_sync_cookies(auto_sync_cookies);
+
     // Global icon registry.
     // NOTE: slint globals are per-component instance — each window has its own
     // `Icons` instance, so the render callback must be wired on every window
@@ -2127,6 +2337,26 @@ fn main() -> Result<(), slint::PlatformError> {
     wire_icons(Icons::get(&panel));
     wire_icons(Icons::get(&hud));
     wire_icons(Icons::get(&bubble));
+
+    // Restore application interface language (ID / EN) before initializing any
+    // dynamic lists/badges so startup views match the persisted locale.
+    let init_lang = {
+        #[cfg(feature = "dev-tools")]
+        let cli_lang = args_flag_value("--lang");
+        #[cfg(not(feature = "dev-tools"))]
+        let cli_lang: Option<String> = None;
+
+        if let Some(code) = cli_lang {
+            app_core::AppLang::from_code(&code)
+        } else {
+            core.get_setting("app-lang")
+                .ok()
+                .flatten()
+                .map(|c| app_core::AppLang::from_code(&c))
+                .unwrap_or(app_core::AppLang::Id)
+        }
+    };
+    apply_app_language(init_lang, &panel, &hud, &bubble);
 
     // ---------------- Control Panel ----------------
     {
@@ -2170,7 +2400,7 @@ fn main() -> Result<(), slint::PlatformError> {
             &core,
             &panel,
             &hud,
-            &SessionFilter { cat: "Semua".into(), query: String::new() },
+            &SessionFilter { cat: String::new(), query: String::new() },
         );
 
         // Restore persisted HUD flags and the global hotkey before the first
@@ -2290,7 +2520,11 @@ fn main() -> Result<(), slint::PlatformError> {
             panel.set_deepseek_accounts_text("Key 1: demo.chrome@example.com".into());
             panel.set_vault_ok(true);
             panel.set_vault_status(
-                "2 akun sesi aktif (Key 1 Chrome · Key 2 Edge fallback siap).".into(),
+                app_core::tr(
+                    "2 akun sesi aktif (Key 1 Chrome · Key 2 Edge fallback siap).",
+                    "2 active session accounts (Key 1 Chrome · Key 2 Edge fallback ready).",
+                )
+                .into(),
             );
         } else {
             let entries = refresh_vault_accounts(&core, &panel);
@@ -2307,10 +2541,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 } else {
                     format!(" ({})", emails.join(", "))
                 };
-                panel.set_vault_status(
+                let msg = if app_core::is_en() {
+                    format!("{} saved session accounts{} in provider API.", entries.len(), suffix)
+                } else {
                     format!("{} akun sesi tersimpan{} di provider API.", entries.len(), suffix)
-                        .into(),
-                );
+                };
+                panel.set_vault_status(msg.into());
             } else if accounts > 0 {
                 let email = core.get_deepseek_email().unwrap_or_default();
                 panel.set_vault_ok(true);
@@ -2319,14 +2555,35 @@ fn main() -> Result<(), slint::PlatformError> {
                 } else {
                     String::new()
                 };
-                panel.set_vault_status(
-                    format!("{accounts} akun sesi tersimpan{email_str} di provider API.").into(),
-                );
+                let msg = if app_core::is_en() {
+                    format!("{accounts} saved session accounts{email_str} in provider API.")
+                } else {
+                    format!("{accounts} akun sesi tersimpan{email_str} di provider API.")
+                };
+                panel.set_vault_status(msg.into());
                 panel.set_deepseek_connect_count(accounts as i32);
                 if !email.is_empty() {
                     panel.set_deepseek_accounts_text(format!("Key 1: {email}").into());
                 }
             }
+        }
+
+        // Non-blocking startup session auto-sync: populates accounts.json on fresh
+        // launch (unless the user explicitly cleared all keys) or silently refreshes
+        // a stored token if DeepSeek rejected it as expired.
+        let has_shot_flag = args.iter().any(|a| a.starts_with("--shot"));
+        if !demo_keys && !ui_test_active() && !has_shot_flag && auto_sync_cookies {
+            let core_boot = core.clone();
+            let tx_boot = (*diag_tx).clone();
+            let allow_empty_sync = !vault_user_cleared;
+            std::thread::spawn(move || {
+                if let Some(reports) = core_boot.auto_sync_startup_sessions(allow_empty_sync) {
+                    let (ok, msg) = format_vault_fetch_all_status(&reports);
+                    if ok {
+                        let _ = tx_boot.send(DiagMsg::Vault { ok: true, msg });
+                    }
+                }
+            });
         }
         let win = core.current_window();
         panel.set_detected_window(
@@ -2504,7 +2761,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let pick = (*selected_toggle.borrow()).min(profiles_toggle.len().saturating_sub(1));
                     if let Some(profile) = profiles_toggle.get(pick).cloned() {
                         if let Some(mut card) = providers_toggle.row_data(idx) {
-                            card.status = "Menghubungkan…".into();
+                            card.status = app_core::tr("Menghubungkan…", "Connecting…").into();
                             card.tone = "amber".into();
                             providers_toggle.set_row_data(idx, card);
                         }
@@ -2538,7 +2795,7 @@ fn main() -> Result<(), slint::PlatformError> {
         });
         // ---- session history -------------------------------------------------
         let filter = Rc::new(RefCell::new(SessionFilter {
-            cat: "Semua".into(),
+            cat: String::new(),
             query: String::new(),
         }));
         let apply_sessions = {
@@ -2597,7 +2854,9 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = core_del.delete_topic(&topic);
             if let Some(h) = hud_del.upgrade() {
                 if h.get_current_topic() == name {
-                    h.set_current_topic("Percakapan Baru".into());
+                    h.set_current_topic(
+                        app_core::tr("Percakapan Baru", "New Conversation").into(),
+                    );
                     messages_del.set_vec(Vec::new());
                     turns_del.borrow_mut().clear();
                     sync_chat_height(&messages_del);
@@ -2660,7 +2919,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 .unwrap_or_else(|| "deepseek-chat".to_string());
             p.set_diag_busy(true);
             p.set_diag_ok(false);
-            p.set_diag_status(format!("Menguji {label} ({model})...").into());
+            p.set_diag_status(
+                if app_core::is_en() {
+                    format!("Testing {label} ({model})...")
+                } else {
+                    format!("Menguji {label} ({model})...")
+                }
+                .into(),
+            );
             let core_t = core_diag.clone();
             let tx = (*tx_diag).clone();
             std::thread::spawn(move || {
@@ -2689,12 +2955,25 @@ fn main() -> Result<(), slint::PlatformError> {
             let list = core_dall.providers().unwrap_or_default();
             if list.is_empty() {
                 p.set_diag_ok(false);
-                p.set_diag_status("Tidak ada provider aktif di API.".into());
+                p.set_diag_status(
+                    app_core::tr(
+                        "Tidak ada provider aktif di API.",
+                        "No active provider in API.",
+                    )
+                    .into(),
+                );
                 return;
             }
             p.set_diag_busy(true);
             p.set_diag_ok(false);
-            p.set_diag_status(format!("Menguji {} provider...", list.len()).into());
+            p.set_diag_status(
+                if app_core::is_en() {
+                    format!("Testing {} providers...", list.len())
+                } else {
+                    format!("Menguji {} provider...", list.len())
+                }
+                .into(),
+            );
             let core_t = core_dall.clone();
             let tx = (*tx_dall).clone();
             std::thread::spawn(move || {
@@ -2728,23 +3007,43 @@ fn main() -> Result<(), slint::PlatformError> {
             let pick = (*selected_dext.borrow()).min(profiles_dext.len().saturating_sub(1));
             let Some(profile) = profiles_dext.get(pick).cloned() else {
                 p.set_diag_ok(false);
-                p.set_diag_status("Tidak ada profil browser yang terdeteksi.".into());
+                p.set_diag_status(
+                    app_core::tr(
+                        "Tidak ada profil browser yang terdeteksi.",
+                        "No browser profiles detected.",
+                    )
+                    .into(),
+                );
                 return;
             };
             key_res_dext.borrow_mut().clear();
             p.set_diag_busy(true);
             p.set_diag_ok(false);
-            p.set_diag_status(format!("Mengekstrak cookie dari {}...", profile.browser_name).into());
+            p.set_diag_status(
+                if app_core::is_en() {
+                    format!("Extracting cookies from {}...", profile.browser_name)
+                } else {
+                    format!("Mengekstrak cookie dari {}...", profile.browser_name)
+                }
+                .into(),
+            );
             let core_t = core_dext.clone();
             let tx = (*tx_dext).clone();
             std::thread::spawn(move || {
                 let rep = core_t.connect_deepseek(&profile);
                 let _ = tx.send(DiagMsg::Extract {
                     ok: rep.success,
-                    msg: format!(
-                        "{} · {} cookie terbaca · {} terkunci v20 · token {} karakter",
-                        rep.status, rep.cookies_found, rep.locked_v20, rep.token_chars
-                    ),
+                    msg: if app_core::is_en() {
+                        format!(
+                            "{} · {} cookies read · {} v20-locked · {}-char token",
+                            rep.status, rep.cookies_found, rep.locked_v20, rep.token_chars
+                        )
+                    } else {
+                        format!(
+                            "{} · {} cookie terbaca · {} terkunci v20 · token {} karakter",
+                            rep.status, rep.cookies_found, rep.locked_v20, rep.token_chars
+                        )
+                    },
                 });
                 let _ = tx.send(DiagMsg::Done);
             });
@@ -2773,16 +3072,33 @@ fn main() -> Result<(), slint::PlatformError> {
             let entries = core_dkey.deepseek_accounts();
             let Some((idx, acc)) = entries.into_iter().enumerate().find(|(_, a)| a.name == id_s) else {
                 p.set_diag_ok(false);
-                p.set_diag_status(format!("Key '{id_s}' tidak ditemukan di pool.").into());
+                p.set_diag_status(
+                    if app_core::is_en() {
+                        format!("Key '{id_s}' not found in pool.")
+                    } else {
+                        format!("Key '{id_s}' tidak ditemukan di pool.")
+                    }
+                    .into(),
+                );
                 return;
             };
             let label = key_probe_label(idx, &acc);
             p.set_diag_busy(true);
             p.set_diag_ok(false);
-            p.set_diag_status(format!("Menguji {label}...").into());
+            p.set_diag_status(
+                if app_core::is_en() {
+                    format!("Testing {label}...")
+                } else {
+                    format!("Menguji {label}...")
+                }
+                .into(),
+            );
             {
                 let mut map = key_res_dkey.borrow_mut();
-                map.insert(id_s.clone(), ("Menguji...".into(), "amber".into()));
+                map.insert(
+                    id_s.clone(),
+                    (app_core::tr("Menguji...", "Testing...").into(), "amber".into()),
+                );
                 apply_key_diag_overlay(&p, &map);
             }
             let core_t = core_dkey.clone();
@@ -2814,24 +3130,47 @@ fn main() -> Result<(), slint::PlatformError> {
                 apply_key_diag_overlay(&p, &map);
                 p.set_diag_ok(true);
                 p.set_diag_latency("210 ms".into());
-                p.set_diag_status(format!("Selesai uji {0}/{0} key DeepSeek.", rows.row_count()).into());
+                p.set_diag_status(
+                    if app_core::is_en() {
+                        format!("Tested {0}/{0} DeepSeek keys.", rows.row_count())
+                    } else {
+                        format!("Selesai uji {0}/{0} key DeepSeek.", rows.row_count())
+                    }
+                    .into(),
+                );
                 return;
             }
             let entries = core_dallk.deepseek_accounts();
             if entries.is_empty() {
                 p.set_diag_ok(false);
-                p.set_diag_status("Tidak ada key DeepSeek tersimpan untuk diuji.".into());
+                p.set_diag_status(
+                    app_core::tr(
+                        "Tidak ada key DeepSeek tersimpan untuk diuji.",
+                        "No saved DeepSeek keys to test.",
+                    )
+                    .into(),
+                );
                 return;
             }
             let total = entries.len();
             p.set_diag_busy(true);
             p.set_diag_ok(false);
-            p.set_diag_status(format!("Menguji {total} key DeepSeek...").into());
+            p.set_diag_status(
+                if app_core::is_en() {
+                    format!("Testing {total} DeepSeek keys...")
+                } else {
+                    format!("Menguji {total} key DeepSeek...")
+                }
+                .into(),
+            );
             {
                 let mut map = key_res_dallk.borrow_mut();
                 map.clear();
                 for acc in &entries {
-                    map.insert(acc.name.clone(), ("Menunggu...".into(), "amber".into()));
+                    map.insert(
+                        acc.name.clone(),
+                        (app_core::tr("Menunggu...", "Waiting...").into(), "amber".into()),
+                    );
                 }
                 apply_key_diag_overlay(&p, &map);
             }
@@ -2858,11 +3197,29 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
                 let summary_msg = if ok_count == total {
                     match best_ms {
-                        Some(m) => format!("Selesai uji {ok_count}/{total} key DeepSeek: semua siap (tercepat {m} ms)."),
-                        None => format!("Selesai uji {ok_count}/{total} key DeepSeek: semua siap."),
+                        Some(m) => {
+                            if app_core::is_en() {
+                                format!("Tested {ok_count}/{total} DeepSeek keys: all ready (fastest {m} ms).")
+                            } else {
+                                format!("Selesai uji {ok_count}/{total} key DeepSeek: semua siap (tercepat {m} ms).")
+                            }
+                        }
+                        None => {
+                            if app_core::is_en() {
+                                format!("Tested {ok_count}/{total} DeepSeek keys: all ready.")
+                            } else {
+                                format!("Selesai uji {ok_count}/{total} key DeepSeek: semua siap.")
+                            }
+                        }
                     }
                 } else if let Some(err) = first_err {
-                    format!("{ok_count}/{total} key siap \u{00b7} {err}")
+                    if app_core::is_en() {
+                        format!("{ok_count}/{total} keys ready \u{00b7} {err}")
+                    } else {
+                        format!("{ok_count}/{total} key siap \u{00b7} {err}")
+                    }
+                } else if app_core::is_en() {
+                    format!("{ok_count}/{total} DeepSeek keys ready.")
                 } else {
                     format!("{ok_count}/{total} key DeepSeek siap.")
                 };
@@ -2883,6 +3240,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let sing_set = sing_ctrl.clone();
         let bubble_set = bubble.as_weak();
         let sprites_set = bubble_sprites.clone();
+        let bscroll_set = bubble_scroll.clone();
         panel.on_setting_toggled(move |key, value| {
             let k = key.to_string();
             if let Some(h) = hud_set.upgrade() {
@@ -2906,6 +3264,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     "send-close" => p.set_set_send_close(value),
                     "random-singing" => p.set_set_random_singing(value),
                     "sing-ram-guard" => p.set_set_sing_ram_guard(value),
+                    "bubble-auto-scroll" => p.set_set_bubble_auto_scroll(value),
+                    "auto-sync-cookies" => p.set_set_auto_sync_cookies(value),
                     _ => {}
                 }
             }
@@ -2927,6 +3287,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         stop_singing_perf(&sing_set, &bubble_set, &panel_set, &sprites_set, true);
                     }
                 }
+                "bubble-auto-scroll" => {
+                    bscroll_set.borrow_mut().set_enabled(value);
+                }
                 _ => {}
             }
             if !ui_test_active() {
@@ -2945,6 +3308,46 @@ fn main() -> Result<(), slint::PlatformError> {
             sing_vol.borrow_mut().set_volume(clamped as u8);
             if !ui_test_active() {
                 let _ = core_vol.save_setting("sing-volume", &clamped.to_string());
+            }
+        });
+
+        let core_spd = core.clone();
+        let panel_spd = panel.as_weak();
+        let bscroll_spd = bubble_scroll.clone();
+        panel.on_bubble_read_speed_selected(move |code| {
+            let spd = bubble_scroll::BubbleReadSpeed::from_code(code.as_str());
+            bscroll_spd.borrow_mut().set_speed(spd);
+            if !ui_test_active() {
+                let _ = core_spd.save_setting("bubble-read-speed", spd.code());
+            }
+            if let Some(p) = panel_spd.upgrade() {
+                p.set_bubble_read_speed(spd.code().into());
+                let label = match spd {
+                    bubble_scroll::BubbleReadSpeed::Slow => {
+                        app_core::tr("Santai (2,2 kata/dtk)", "Slow (2.2 wps)")
+                    }
+                    bubble_scroll::BubbleReadSpeed::Normal => {
+                        app_core::tr("Normal (2,8 kata/dtk)", "Normal (2.8 wps)")
+                    }
+                    bubble_scroll::BubbleReadSpeed::Fast => {
+                        app_core::tr("Cepat (3,6 kata/dtk)", "Fast (3.6 wps)")
+                    }
+                };
+                p.set_status_text(
+                    if app_core::is_en() {
+                        format!("Bubble reading speed: {label}")
+                    } else {
+                        format!("Kecepatan baca bubble: {label}")
+                    }
+                    .into(),
+                );
+                p.set_status_visible(true);
+                let weak = p.as_weak();
+                slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
+                    if let Some(p) = weak.upgrade() {
+                        p.set_status_visible(false);
+                    }
+                });
             }
         });
 
@@ -2982,7 +3385,9 @@ fn main() -> Result<(), slint::PlatformError> {
             messages_clear.set_vec(Vec::new());
             sync_chat_height(&messages_clear);
             if let Some(h) = hud_clear.upgrade() {
-                h.set_current_topic("Percakapan Baru".into());
+                h.set_current_topic(
+                    app_core::tr("Percakapan Baru", "New Conversation").into(),
+                );
             }
             apply_clear();
         });
@@ -3005,7 +3410,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let m = p.get_hk_mod().to_string();
             let k = p.get_hk_key().to_string();
             if let Err(e) = app_core::update_global_hotkey(&m, &k) {
-                p.set_status_text(format!("Gagal menyimpan pintasan: {e}").into());
+                p.set_status_text(
+                    if app_core::is_en() {
+                        format!("Failed to save shortcut: {e}")
+                    } else {
+                        format!("Gagal menyimpan pintasan: {e}")
+                    }
+                    .into(),
+                );
                 p.set_status_visible(true);
                 return;
             }
@@ -3013,7 +3425,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = core_apply.save_setting("hotkey-key", &k);
             p.set_hk_active_mod(m.clone().into());
             p.set_hk_active_key(k.clone().into());
-            p.set_status_text(format!("Pintasan {m}+{k} aktif.").into());
+            p.set_status_text(
+                if app_core::is_en() {
+                    format!("Shortcut {m}+{k} active.")
+                } else {
+                    format!("Pintasan {m}+{k} aktif.")
+                }
+                .into(),
+            );
             p.set_status_visible(true);
             let weak = p.as_weak();
             slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
@@ -3030,7 +3449,14 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Err(e) = app_core::update_global_hotkey("Alt", "Q") {
                 // Another app may own Alt+Q; say so instead of showing a
                 // shortcut that is not actually registered.
-                p.set_status_text(format!("Gagal memasang Alt+Q: {e}").into());
+                p.set_status_text(
+                    if app_core::is_en() {
+                        format!("Failed to register Alt+Q: {e}")
+                    } else {
+                        format!("Gagal memasang Alt+Q: {e}")
+                    }
+                    .into(),
+                );
                 p.set_status_visible(true);
                 return;
             }
@@ -3060,7 +3486,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let m = p.get_trans_hk_mod().to_string();
             let k = p.get_trans_hk_key().to_string();
             if let Err(e) = app_core::update_translate_hotkey(&m, &k) {
-                p.set_status_text(format!("Gagal menyimpan pintasan translate: {e}").into());
+                p.set_status_text(
+                    if app_core::is_en() {
+                        format!("Failed to save translate shortcut: {e}")
+                    } else {
+                        format!("Gagal menyimpan pintasan translate: {e}")
+                    }
+                    .into(),
+                );
                 p.set_status_visible(true);
                 return;
             }
@@ -3068,7 +3501,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = core_tapply.save_setting("translate-hk-key", &k);
             p.set_trans_hk_active_mod(m.clone().into());
             p.set_trans_hk_active_key(k.clone().into());
-            p.set_status_text(format!("Pintasan Translate {m}+{k} aktif.").into());
+            p.set_status_text(
+                if app_core::is_en() {
+                    format!("Translate shortcut {m}+{k} active.")
+                } else {
+                    format!("Pintasan Translate {m}+{k} aktif.")
+                }
+                .into(),
+            );
             p.set_status_visible(true);
             let weak = p.as_weak();
             slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
@@ -3083,7 +3523,14 @@ fn main() -> Result<(), slint::PlatformError> {
         panel.on_trans_hotkey_reset(move || {
             let Some(p) = panel_treset.upgrade() else { return };
             if let Err(e) = app_core::update_translate_hotkey("Alt", "T") {
-                p.set_status_text(format!("Gagal memasang Alt+T: {e}").into());
+                p.set_status_text(
+                    if app_core::is_en() {
+                        format!("Failed to register Alt+T: {e}")
+                    } else {
+                        format!("Gagal memasang Alt+T: {e}")
+                    }
+                    .into(),
+                );
                 p.set_status_visible(true);
                 return;
             }
@@ -3105,7 +3552,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = core_lang.save_setting("translate-lang", &s);
             if let Some(p) = panel_lang.upgrade() {
                 p.set_translate_lang(s.clone().into());
-                p.set_status_text(format!("Bahasa terjemahan layar: {s}").into());
+                p.set_status_text(
+                    if app_core::is_en() {
+                        format!("Screen translate language: {s}")
+                    } else {
+                        format!("Bahasa terjemahan layar: {s}")
+                    }
+                    .into(),
+                );
                 p.set_status_visible(true);
                 let weak = p.as_weak();
                 slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
@@ -3131,7 +3585,109 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = core_tprompt.save_setting("translate-prompt", &effective);
             if let Some(p) = panel_tprompt.upgrade() {
                 p.set_translate_prompt(effective.into());
-                p.set_status_text("Prompt terjemahan disimpan.".into());
+                p.set_status_text(
+                    app_core::tr(
+                        "Prompt terjemahan disimpan.",
+                        "Translation prompt saved.",
+                    )
+                    .into(),
+                );
+                p.set_status_visible(true);
+                let weak = p.as_weak();
+                slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
+                    if let Some(p) = weak.upgrade() {
+                        p.set_status_visible(false);
+                    }
+                });
+            }
+        });
+
+        let core_applang = core.clone();
+        let panel_applang = panel.as_weak();
+        let hud_applang = hud.as_weak();
+        let bubble_applang = bubble.as_weak();
+        let profiles_applang = profiles.clone();
+        let logos_applang = browser_logos.clone();
+        let selected_applang = selected_browser.clone();
+        let key_res_applang = diag_key_results.clone();
+        let apply_sessions_applang = apply_sessions.clone();
+        panel.on_app_lang_selected(move |code| {
+            let lang = app_core::AppLang::from_code(code.as_str());
+            if !ui_test_active() {
+                let _ = core_applang.save_setting("app-lang", lang.code());
+            }
+            if let (Some(p), Some(h), Some(b)) = (
+                panel_applang.upgrade(),
+                hud_applang.upgrade(),
+                bubble_applang.upgrade(),
+            ) {
+                apply_app_language(lang, &p, &h, &b);
+                apply_active_browser(
+                    *selected_applang.borrow(),
+                    &profiles_applang,
+                    &logos_applang,
+                    &p,
+                    None,
+                );
+                if demo_keys {
+                    let demo = demo_vault_keys();
+                    p.set_deepseek_keys(ModelRc::new(VecModel::from(demo)));
+                    p.set_vault_status(
+                        app_core::tr_for(
+                            lang,
+                            "2 akun sesi aktif (Key 1 Chrome · Key 2 Edge fallback siap).",
+                            "2 active session accounts (Key 1 Chrome · Key 2 Edge fallback ready).",
+                        )
+                        .into(),
+                    );
+                } else {
+                    let entries = refresh_vault_accounts_with_diag(
+                        &core_applang,
+                        &p,
+                        &key_res_applang.borrow(),
+                    );
+                    if !p.get_vault_busy() && p.get_vault_ok() && !entries.is_empty() {
+                        let emails: Vec<&str> = entries
+                            .iter()
+                            .take(2)
+                            .map(|e| e.email.as_str())
+                            .filter(|s| !s.is_empty())
+                            .collect();
+                        let suffix = if emails.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" ({})", emails.join(", "))
+                        };
+                        let cur_v = p.get_vault_status().to_string();
+                        if cur_v.contains("akun sesi tersimpan")
+                            || cur_v.contains("saved session accounts")
+                        {
+                            let msg = if lang.is_en() {
+                                format!(
+                                    "{} saved session accounts{} in provider API.",
+                                    entries.len(),
+                                    suffix
+                                )
+                            } else {
+                                format!(
+                                    "{} akun sesi tersimpan{} di provider API.",
+                                    entries.len(),
+                                    suffix
+                                )
+                            };
+                            p.set_vault_status(msg.into());
+                        }
+                    }
+                }
+                apply_sessions_applang();
+                p.set_status_text(
+                    app_core::tr_for(
+                        lang,
+                        "Bahasa aplikasi: Bahasa Indonesia",
+                        "App language: English",
+                    )
+                    .into(),
+                );
                 p.set_status_visible(true);
                 let weak = p.as_weak();
                 slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
@@ -3179,7 +3735,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 .filter_map(|i| model.row_data(i).map(|r| r.id.to_string()))
                 .collect();
             let _ = core_order.save_setting("provider-order", &ids.join(","));
-            p.set_status_text("Urutan provider disimpan.".into());
+            p.set_status_text(
+                app_core::tr("Urutan provider disimpan.", "Provider order saved.").into(),
+            );
             p.set_status_visible(true);
             let weak = p.as_weak();
             slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
@@ -3212,14 +3770,24 @@ fn main() -> Result<(), slint::PlatformError> {
             key_res_vf.borrow_mut().clear();
             if let Some(p) = panel_vault.upgrade() {
                 p.set_vault_busy(true);
-                p.set_vault_status("Mengambil cookie dari browser…".into());
+                p.set_vault_status(
+                    app_core::tr(
+                        "Mengambil cookie dari browser…",
+                        "Extracting cookies from browser…",
+                    )
+                    .into(),
+                );
             }
             // Same off-thread path as the diagnostics probe: Chrome's cookie DB
             // and DPAPI take hundreds of ms and must not freeze the panel.
             let core_worker = core_vault.clone();
             let tx = (*tx_vault).clone();
+            let is_ui_test = ui_test_active();
             std::thread::spawn(move || {
                 let report = core_worker.connect_deepseek(&profile);
+                if report.success && !is_ui_test {
+                    let _ = core_worker.save_setting("vault-user-cleared", "0");
+                }
                 dlog!("[vault] fetch: {} ({})", report.status, report.message);
                 let _ = tx.send(DiagMsg::Vault {
                     ok: report.success,
@@ -3236,13 +3804,23 @@ fn main() -> Result<(), slint::PlatformError> {
             key_res_va.borrow_mut().clear();
             if let Some(p) = panel_vall.upgrade() {
                 p.set_vault_busy(true);
-                p.set_vault_status("Mengambil sesi dari semua browser (Chrome & Edge)…".into());
+                p.set_vault_status(
+                    app_core::tr(
+                        "Mengambil sesi dari semua browser (Chrome & Edge)…",
+                        "Extracting sessions from all browsers (Chrome & Edge)…",
+                    )
+                    .into(),
+                );
             }
             let core_worker = core_vall.clone();
             let tx = (*tx_vall).clone();
+            let is_ui_test = ui_test_active();
             std::thread::spawn(move || {
                 let reports = core_worker.connect_deepseek_all_browsers();
                 let (ok, msg) = format_vault_fetch_all_status(&reports);
+                if ok && !is_ui_test {
+                    let _ = core_worker.save_setting("vault-user-cleared", "0");
+                }
                 let _ = tx.send(DiagMsg::Vault { ok, msg });
             });
         });
@@ -3256,7 +3834,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             }
             if let Some(p) = panel_prom.upgrade() {
-                p.set_vault_status("Memindahkan prioritas key utama…".into());
+                p.set_vault_status(
+                    app_core::tr(
+                        "Memindahkan prioritas key utama…",
+                        "Updating primary key priority…",
+                    )
+                    .into(),
+                );
             }
             let core_worker = core_prom.clone();
             let tx = (*tx_prom).clone();
@@ -3265,8 +3849,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 let _ = tx.send(DiagMsg::Vault {
                     ok: res.is_ok(),
                     msg: match res {
-                        Ok(()) => "Prioritas diperbarui: akun terpilih menjadi Key 1 (Utama).".into(),
-                        Err(e) => format!("Gagal: {e}"),
+                        Ok(()) => app_core::tr(
+                            "Prioritas diperbarui: akun terpilih menjadi Key 1 (Utama).",
+                            "Priority updated: selected account is now Key 1 (Primary).",
+                        )
+                        .into(),
+                        Err(e) => {
+                            if app_core::is_en() {
+                                format!("Failed: {e}")
+                            } else {
+                                format!("Gagal: {e}")
+                            }
+                        }
                     },
                 });
             });
@@ -3283,17 +3877,37 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             key_res_rem.borrow_mut().remove(&id_s);
             if let Some(p) = panel_rem.upgrade() {
-                p.set_vault_status("Menghapus sesi key dari pool…".into());
+                p.set_vault_status(
+                    app_core::tr(
+                        "Menghapus sesi key dari pool…",
+                        "Removing key session from pool…",
+                    )
+                    .into(),
+                );
             }
             let core_worker = core_rem.clone();
             let tx = (*tx_rem).clone();
+            let is_ui_test = ui_test_active();
             std::thread::spawn(move || {
                 let res = core_worker.remove_account(&id_s);
+                if res.is_ok() && !is_ui_test && core_worker.deepseek_accounts().is_empty() {
+                    let _ = core_worker.save_setting("vault-user-cleared", "1");
+                }
                 let _ = tx.send(DiagMsg::Vault {
                     ok: res.is_ok(),
                     msg: match res {
-                        Ok(()) => "Key dihapus dari pool akun aktif.".into(),
-                        Err(e) => format!("Gagal: {e}"),
+                        Ok(()) => app_core::tr(
+                            "Key dihapus dari pool akun aktif.",
+                            "Key removed from active account pool.",
+                        )
+                        .into(),
+                        Err(e) => {
+                            if app_core::is_en() {
+                                format!("Failed: {e}")
+                            } else {
+                                format!("Gagal: {e}")
+                            }
+                        }
                     },
                 });
             });
@@ -3310,17 +3924,33 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             key_res_vs.borrow_mut().remove("manual");
             if let Some(p) = panel_vsave.upgrade() {
-                p.set_vault_status("Menyimpan token…".into());
+                p.set_vault_status(
+                    app_core::tr("Menyimpan token…", "Saving token…").into(),
+                );
             }
             let core_worker = core_vsave.clone();
             let tx = (*tx_vsave).clone();
+            let is_ui_test = ui_test_active();
             std::thread::spawn(move || {
                 let result = core_worker.register_token("manual", &token);
+                if result.is_ok() && !is_ui_test {
+                    let _ = core_worker.save_setting("vault-user-cleared", "0");
+                }
                 let _ = tx.send(DiagMsg::Vault {
                     ok: result.is_ok(),
                     msg: match result {
-                        Ok(()) => "Terpasang: token manual untuk DeepSeek.".to_string(),
-                        Err(e) => format!("Gagal: {e}"),
+                        Ok(()) => app_core::tr(
+                            "Terpasang: token manual untuk DeepSeek.",
+                            "Connected: manual token for DeepSeek.",
+                        )
+                        .to_string(),
+                        Err(e) => {
+                            if app_core::is_en() {
+                                format!("Failed: {e}")
+                            } else {
+                                format!("Gagal: {e}")
+                            }
+                        }
                     },
                 });
             });
@@ -3741,7 +4371,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             }
             let prompt = if trimmed.is_empty() {
-                "Tolong analisis lampiran ini.".to_string()
+                app_core::tr(
+                    "Tolong analisis lampiran ini.",
+                    "Please analyze this attachment.",
+                )
+                .to_string()
             } else {
                 trimmed.to_string()
             };
@@ -3761,7 +4395,13 @@ fn main() -> Result<(), slint::PlatformError> {
             stop_singing_global(true);
             // Every provider card switched off: there is nothing to send to.
             if h.get_models().iter().count() == 0 {
-                h.set_status_text("Tidak ada provider aktif — nyalakan di control panel.".into());
+                h.set_status_text(
+                    app_core::tr(
+                        "Tidak ada provider aktif — nyalakan di control panel.",
+                        "No active provider — enable one in the control panel.",
+                    )
+                    .into(),
+                );
                 h.set_status_visible(true);
                 return;
             }
@@ -3820,7 +4460,8 @@ fn main() -> Result<(), slint::PlatformError> {
             );
 
             // 2. Render user row and assistant typing row IMMEDIATELY (0ms delay)
-            let mut user_row = model::message("user", "ANDA", &prompt, "", false);
+            let mut user_row =
+                model::message("user", app_core::tr("ANDA", "YOU"), &prompt, "", false);
             if let Some(first) = attach_items.first() {
                 user_row.attach_name = first.ext.clone();
                 user_row.attach_image = first.is_image;
@@ -4008,7 +4649,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             };
             if attach_cap.borrow().len() >= 8 {
-                h.set_status_text("Maksimal 8 lampiran per pesan.".into());
+                h.set_status_text(
+                    app_core::tr(
+                        "Maksimal 8 lampiran per pesan.",
+                        "Maximum 8 attachments per message.",
+                    )
+                    .into(),
+                );
                 h.set_status_visible(true);
                 return;
             }
@@ -4026,7 +4673,14 @@ fn main() -> Result<(), slint::PlatformError> {
                     attach_cap.borrow_mut().push(path);
                     let count = attach_cap.borrow().len();
                     sync_hud_attachments(&h, &attach_cap.borrow());
-                    h.set_status_text(format!("Screenshot #{count} siap dikirim.").into());
+                    h.set_status_text(
+                        if app_core::is_en() {
+                            format!("Screenshot #{count} ready to send.")
+                        } else {
+                            format!("Screenshot #{count} siap dikirim.")
+                        }
+                        .into(),
+                    );
                     h.set_status_visible(true);
                     let weak = weak_cap.clone();
                     slint::Timer::single_shot(std::time::Duration::from_secs(2), move || {
@@ -4037,7 +4691,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
                 Err(e) => {
                     dlog!("[test] capture failed: {e}");
-                    h.set_status_text(format!("Capture gagal: {e}").into());
+                    h.set_status_text(
+                        if app_core::is_en() {
+                            format!("Capture failed: {e}")
+                        } else {
+                            format!("Capture gagal: {e}")
+                        }
+                        .into(),
+                    );
                     h.set_status_visible(true);
                 }
             }
@@ -4063,7 +4724,14 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
                 sync_hud_attachments(&h, &attach_path.borrow());
-                h.set_status_text(format!("File dipilih: {name}").into());
+                h.set_status_text(
+                    if app_core::is_en() {
+                        format!("File selected: {name}")
+                    } else {
+                        format!("File dipilih: {name}")
+                    }
+                    .into(),
+                );
                 h.set_status_visible(true);
                 let weak = weak_attach.clone();
                 slint::Timer::single_shot(std::time::Duration::from_secs(3), move || {
@@ -4584,6 +5252,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let panel_pump = panel.as_weak();
         let core_pump = core.clone();
+        let prov_map_pump = provider_map.clone();
         _diag_pump.start(
             slint::TimerMode::Repeated,
             std::time::Duration::from_millis(150),
@@ -4601,12 +5270,19 @@ fn main() -> Result<(), slint::PlatformError> {
                         DiagMsg::Fail { label, err } => {
                             p.set_diag_ok(false);
                             p.set_diag_latency("-".into());
-                            p.set_diag_status(format!("{label}: GAGAL \u{00b7} {err}").into());
+                            p.set_diag_status(
+                                if app_core::is_en() {
+                                    format!("{label}: FAILED \u{00b7} {err}")
+                                } else {
+                                    format!("{label}: GAGAL \u{00b7} {err}")
+                                }
+                                .into(),
+                            );
                         }
                         DiagMsg::KeyTesting { id } => {
                             diag_key_results
                                 .borrow_mut()
-                                .insert(id, ("Menguji...".into(), "amber".into()));
+                                .insert(id, (app_core::tr("Menguji...", "Testing...").into(), "amber".into()));
                             apply_key_diag_overlay(&p, &diag_key_results.borrow());
                         }
                         DiagMsg::KeyResult {
@@ -4629,7 +5305,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                 );
                             } else {
                                 p.set_diag_status(
-                                    format!("{label}: GAGAL \u{00b7} {detail}").into(),
+                                    if app_core::is_en() {
+                                        format!("{label}: FAILED \u{00b7} {detail}")
+                                    } else {
+                                        format!("{label}: GAGAL \u{00b7} {detail}")
+                                    }
+                                    .into(),
                                 );
                             }
                             let _ = refresh_vault_accounts_with_diag(
@@ -4672,19 +5353,37 @@ fn main() -> Result<(), slint::PlatformError> {
                                 &p,
                                 &diag_key_results.borrow(),
                             );
+                            if prov_map_pump.borrow().is_empty() {
+                                *prov_map_pump.borrow_mut() =
+                                    core_pump.providers().unwrap_or_default();
+                            }
                             let provs = p.get_providers();
                             let has_keys = !entries.is_empty();
                             for i in 0..provs.row_count() {
                                 if let Some(mut card) = provs.row_data(i) {
-                                    if card.id == "deepseek" && (has_keys && !card.enabled || !has_keys && card.enabled) {
-                                        card.enabled = has_keys;
-                                        card.order = if has_keys {
-                                            format!("#{}", i + 1)
-                                        } else {
-                                            "OFF".to_string()
+                                    if card.id == "deepseek" {
+                                        let want_tone = if has_keys { "green" } else { "amber" };
+                                        let changed = card.enabled != has_keys
+                                            || card.tone.as_str() != want_tone;
+                                        if changed {
+                                            card.enabled = has_keys;
+                                            card.status =
+                                                if has_keys { "Connected" } else { "Offline" }
+                                                    .into();
+                                            card.tone = want_tone.into();
+                                            card.tone_color = if has_keys {
+                                                slint::Color::from_rgb_u8(0x2C, 0xE5, 0x9B)
+                                            } else {
+                                                slint::Color::from_rgb_u8(0xFF, 0xD1, 0x66)
+                                            };
+                                            card.order = if has_keys {
+                                                format!("#{}", i + 1)
+                                            } else {
+                                                "OFF".to_string()
+                                            }
+                                            .into();
+                                            provs.set_row_data(i, card);
                                         }
-                                        .into();
-                                        provs.set_row_data(i, card);
                                         break;
                                     }
                                 }
@@ -4759,6 +5458,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let trans_rx_slot = trans_stream_rx.clone();
         let trans_buf_slot = trans_stream_buf.clone();
         let trans_deadline_slot = trans_deadline.clone();
+        let bubble_scroll_slot = bubble_scroll.clone();
+        let scroll_anim_timer_pump = scroll_anim_timer.clone();
         let answer_pump = answer_in_bubble.clone();
         let bubble_pump = bubble.as_weak();
         let messages_pump = chat_messages.clone();
@@ -4790,13 +5491,52 @@ fn main() -> Result<(), slint::PlatformError> {
                     sync_chat_height_preserve(&messages_pump, None);
                 }
 
-                // Independent translation bubble auto-hide countdown (dynamic by word count).
+                // Human-reading-paced stop-and-glide auto-scroll for BubbleWindow.
+                if scroll_anim_timer_pump.running() {
+                    let keep_open = bubble_pump
+                        .upgrade()
+                        .is_some_and(|b| b.get_translate_visible());
+                    if !keep_open {
+                        bubble_scroll_slot.borrow_mut().reset();
+                        scroll_anim_timer_pump.stop();
+                    }
+                } else if bubble_scroll_slot.borrow().is_active() {
+                    if let Some(b) = bubble_pump.upgrade() {
+                        if tick_bubble_scroll_once(&b, &bubble_scroll_slot, &trans_deadline_slot) {
+                            let timer_weak = Rc::downgrade(&scroll_anim_timer_pump);
+                            let bubble_anim = bubble_pump.clone();
+                            let scroll_anim = bubble_scroll_slot.clone();
+                            let deadline_anim = trans_deadline_slot.clone();
+                            scroll_anim_timer_pump.start(
+                                slint::TimerMode::Repeated,
+                                std::time::Duration::from_millis(16),
+                                move || {
+                                    let keep_going = match bubble_anim.upgrade() {
+                                        Some(b) => tick_bubble_scroll_once(
+                                            &b,
+                                            &scroll_anim,
+                                            &deadline_anim,
+                                        ),
+                                        None => false,
+                                    };
+                                    if !keep_going {
+                                        if let Some(t) = timer_weak.upgrade() {
+                                            t.stop();
+                                        }
+                                    }
+                                },
+                            );
+                        }
+                    }
+                }
+
+                // Independent translation bubble auto-hide countdown (starts once reading reaches bottom).
                 if trans_deadline_slot.borrow().is_some() {
                     if let Some(b) = bubble_pump.upgrade() {
                         let now = std::time::Instant::now();
                         let mut should_collapse = false;
                         if let Some(deadline) = *trans_deadline_slot.borrow() {
-                            if !b.get_translate_visible() {
+                            if !b.get_translate_visible() || b.get_translate_busy() {
                                 *trans_deadline_slot.borrow_mut() = None;
                             } else if b.get_translate_hovered() || b.get_held() || b.get_dragging() {
                                 let min_future = now + std::time::Duration::from_secs(2);
@@ -4850,8 +5590,11 @@ fn main() -> Result<(), slint::PlatformError> {
                     if let Some(err) = trans_err {
                         dlog!("[translate] error: {err}");
                         if trans_buf_slot.borrow().trim().is_empty() {
-                            *trans_buf_slot.borrow_mut() =
-                                format!("Gagal menerjemahkan layar: {err}");
+                            *trans_buf_slot.borrow_mut() = if app_core::is_en() {
+                                format!("Screen translation failed: {err}")
+                            } else {
+                                format!("Gagal menerjemahkan layar: {err}")
+                            };
                         }
                         trans_dirty = true;
                     }
@@ -4860,10 +5603,18 @@ fn main() -> Result<(), slint::PlatformError> {
                         if let Some(b) = bubble_pump.upgrade() {
                             update_bubble_stream_text(&b, &text_now, trans_done);
                         }
-                        if trans_done {
-                            let dur = translate_timeout_duration(&text_now);
+                        bubble_scroll_slot.borrow_mut().on_content_updated(
+                            &text_now,
+                            trans_done,
+                            std::time::Instant::now(),
+                        );
+                        if !trans_done {
+                            *trans_deadline_slot.borrow_mut() = None;
+                        } else if !bubble_scroll_slot.borrow().is_active()
+                            && trans_deadline_slot.borrow().is_none()
+                        {
                             *trans_deadline_slot.borrow_mut() =
-                                Some(std::time::Instant::now() + dur);
+                                Some(std::time::Instant::now() + translate_timeout_duration(&text_now));
                         }
                     }
                     if trans_done {
@@ -4896,7 +5647,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                         .borrow()
                                         .map(|t| t.elapsed().as_secs().max(1))
                                         .unwrap_or(1);
-                                    *label_pump.borrow_mut() = format!("Berpikir selama {secs} detik");
+                                    *label_pump.borrow_mut() = if app_core::is_en() {
+                                        format!("Thought for {secs}s")
+                                    } else {
+                                        format!("Berpikir selama {secs} detik")
+                                    };
                                 }
                             }
                             Ok(app_core::ChatEvent::Reasoning(t)) => {
@@ -4923,15 +5678,28 @@ fn main() -> Result<(), slint::PlatformError> {
                                     .map(|t| t.elapsed().as_secs_f32())
                                     .unwrap_or(0.0);
                                 let tokens = usage.as_ref().map(|u| u.total_tokens).unwrap_or(0);
-                                meta = format!(
-                                    "{} · {:.1} dtk · {} token",
-                                    model_pump.borrow(),
-                                    secs,
-                                    tokens
-                                );
+                                meta = if app_core::is_en() {
+                                    format!(
+                                        "{} · {:.1}s · {} tokens",
+                                        model_pump.borrow(),
+                                        secs,
+                                        tokens
+                                    )
+                                } else {
+                                    format!(
+                                        "{} · {:.1} dtk · {} token",
+                                        model_pump.borrow(),
+                                        secs,
+                                        tokens
+                                    )
+                                };
                                 if !reason_pump.borrow().is_empty() && label_pump.borrow().is_empty() {
                                     let isecs = secs.round().max(1.0) as u64;
-                                    *label_pump.borrow_mut() = format!("Berpikir selama {isecs} detik");
+                                    *label_pump.borrow_mut() = if app_core::is_en() {
+                                        format!("Thought for {isecs}s")
+                                    } else {
+                                        format!("Berpikir selama {isecs} detik")
+                                    };
                                 }
                                 finished = true;
                                 break;
@@ -5007,14 +5775,27 @@ fn main() -> Result<(), slint::PlatformError> {
                         Some(b) if b.get_translate_visible() => {
                             let shown = b.get_translate_text().to_string();
                             let next = if failed {
-                                "Gagal menghubungi model. Buka jendela untuk mencoba lagi.".to_string()
+                                app_core::tr(
+                                    "Gagal menghubungi model. Buka jendela untuk mencoba lagi.",
+                                    "Failed to contact model. Open HUD window to retry.",
+                                )
+                                .to_string()
                             } else {
                                 body.clone()
                             };
                             if (!next.is_empty() && next != shown) || finished {
                                 update_bubble_stream_text(&b, &next, finished);
+                                bubble_scroll_slot.borrow_mut().on_content_updated(
+                                    &next,
+                                    finished,
+                                    std::time::Instant::now(),
+                                );
                             }
-                            if finished {
+                            if !finished {
+                                *trans_deadline_slot.borrow_mut() = None;
+                            } else if !bubble_scroll_slot.borrow().is_active()
+                                && trans_deadline_slot.borrow().is_none()
+                            {
                                 *trans_deadline_slot.borrow_mut() =
                                     Some(std::time::Instant::now() + translate_timeout_duration(&next));
                                 // Keep mirroring state only until the user closes it.
@@ -5475,35 +6256,77 @@ fn main() -> Result<(), slint::PlatformError> {
         bubble.set_translate_text(sample.into());
         bubble.set_translate_styled(model::styled(sample));
         sync_bubble_window_size(&bubble);
+        bubble.invoke_scroll_to_top();
+        bubble_scroll.borrow_mut().on_content_updated(
+            sample,
+            true,
+            std::time::Instant::now(),
+        );
     }
     if args.iter().any(|a| a == "--test-hud-rich") {
-        let sample = concat!(
-            "# Panduan Styling Terpadu\n",
-            "Semua blok kini dirender seragam dengan kontras jelas di latar transparan.\n\n",
-            "### 1. Daftar & Checklist\n",
-            "- Poin utama dengan [tautan cyan](https://example.com) dan `inline_code`\n",
-            "  - Sub-poin tetap sejajar lurus ke bawah saat baris panjang membungkus rapi\n",
-            "- [x] Checklist selesai dengan ikon tajam\n",
-            "- [ ] Checklist berikutnya yang perlu dicek\n\n",
-            "### 2. Kutipan & Tabel\n",
-            "> Baris kutipan memakai kartu aksen cyan.\n",
-            "> — Catatan Aemeath 💻\n\n",
-            "| Fitur | Simbol Markdown | Contoh Hasil |\n",
-            "| :--- | :---: | ---: |\n",
-            "| Italic | `*teks*` | *miring* |\n",
-            "| Bold | `**teks**` | **tebal** |\n",
-            "| Link | `[teks](url)` | [Klik](https://example.com) |\n\n",
-            "---\n\n",
-            "### 3. Code Block\n",
-            "```python\n",
-            "def sapa(nama: str) -> str:\n",
-            "    return f\"Halo, {nama}! Selamat datang di Startorch.\"\n\n",
-            "print(sapa(\"Kamu\"))\n",
-            "```\n\n",
-            "✦ **Tips Aemeath**: Cukup tulis Markdown standar seperti biasa."
-        );
+        let (who_user, user_prompt, sample) = if app_core::is_en() {
+            (
+                "YOU",
+                "Show heading, checklist, blockquote, table, divider, and code block rendering!",
+                concat!(
+                    "# Unified Styling Guide\n",
+                    "All blocks render cleanly with sharp contrast on the translucent HUD.\n\n",
+                    "### 1. Lists & Checklist\n",
+                    "- Key point with [cyan link](https://example.com) and `inline_code`\n",
+                    "  - Nested sub-item aligns neatly when wrapping long lines\n",
+                    "- [x] Completed checklist item with crisp icon\n",
+                    "- [ ] Next checklist item to review\n\n",
+                    "### 2. Blockquote & Table\n",
+                    "> Blockquotes use a dedicated cyan-accented card.\n",
+                    "> — Aemeath Notes 💻\n\n",
+                    "| Feature | Markdown Syntax | Preview |\n",
+                    "| :--- | :---: | ---: |\n",
+                    "| Italic | `*text*` | *italic* |\n",
+                    "| Bold | `**text**` | **bold** |\n",
+                    "| Link | `[label](url)` | [Click](https://example.com) |\n\n",
+                    "---\n\n",
+                    "### 3. Code Block\n",
+                    "```python\n",
+                    "def greet(name: str) -> str:\n",
+                    "    return f\"Hello, {name}! Welcome to Startorch.\"\n\n",
+                    "print(greet(\"You\"))\n",
+                    "```\n\n",
+                    "✦ **Aemeath Tip**: Write standard Markdown just as usual."
+                ),
+            )
+        } else {
+            (
+                "ANDA",
+                "Tunjukkan hasil render heading, checklist, blockquote, tabel, divider, dan code block!",
+                concat!(
+                    "# Panduan Styling Terpadu\n",
+                    "Semua blok kini dirender seragam dengan kontras jelas di latar transparan.\n\n",
+                    "### 1. Daftar & Checklist\n",
+                    "- Poin utama dengan [tautan cyan](https://example.com) dan `inline_code`\n",
+                    "  - Sub-poin tetap sejajar lurus ke bawah saat baris panjang membungkus rapi\n",
+                    "- [x] Checklist selesai dengan ikon tajam\n",
+                    "- [ ] Checklist berikutnya yang perlu dicek\n\n",
+                    "### 2. Kutipan & Tabel\n",
+                    "> Baris kutipan memakai kartu aksen cyan.\n",
+                    "> — Catatan Aemeath 💻\n\n",
+                    "| Fitur | Simbol Markdown | Contoh Hasil |\n",
+                    "| :--- | :---: | ---: |\n",
+                    "| Italic | `*teks*` | *miring* |\n",
+                    "| Bold | `**teks**` | **tebal** |\n",
+                    "| Link | `[teks](url)` | [Klik](https://example.com) |\n\n",
+                    "---\n\n",
+                    "### 3. Code Block\n",
+                    "```python\n",
+                    "def sapa(nama: str) -> str:\n",
+                    "    return f\"Halo, {nama}! Selamat datang di Startorch.\"\n\n",
+                    "print(sapa(\"Kamu\"))\n",
+                    "```\n\n",
+                    "✦ **Tips Aemeath**: Cukup tulis Markdown standar seperti biasa."
+                ),
+            )
+        };
         chat_messages.set_vec(vec![
-            model::message("user", "ANDA", "Tunjukkan hasil render heading, checklist, blockquote, tabel, divider, dan code block!", "", false),
+            model::message("user", who_user, user_prompt, "", false),
             model::message("assistant", "AEMEATH", sample, "", true),
         ]);
         sync_chat_height(&chat_messages);
@@ -6271,8 +7094,9 @@ fn schedule_ui_interaction_tests(
                     );
                     bubble.set_translate_visible(true);
                     bubble.set_translate_busy(false);
+                    bubble.invoke_scroll_to_top();
                     let long_bubble_doc = (0..18)
-                        .map(|n| format!("- Baris panjang bubble #{n}: uji scroll otomatis ke bawah saat jawaban melebihi tinggi 340px."))
+                        .map(|n| format!("- Baris panjang bubble #{n}: uji scroll otomatis per halaman saat jawaban melebihi tinggi 340px."))
                         .collect::<Vec<_>>()
                         .join("\n");
                     update_bubble_stream_text(&bubble, &long_bubble_doc, true);
@@ -6497,9 +7321,82 @@ fn schedule_ui_interaction_tests(
                     );
                     let b_y = bubble.get_trans_scroll_y();
                     let b_max = bubble.get_trans_scroll_max();
+                    let starts_at_top = b_max > 100.0 && b_y < 4.0;
+                    // Simulate smooth stop-and-glide progression directly against live BubbleWindow
+                    let long_sim_text = (0..18)
+                        .map(|n| format!("- Baris panjang bubble #{n}: uji scroll otomatis bertahap saat jawaban melebihi tinggi 340px."))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let t0 = std::time::Instant::now();
+                    let mut now = t0;
+                    let mut sim = bubble_scroll::BubbleAutoScroll::new(
+                        true,
+                        bubble_scroll::BubbleReadSpeed::Fast,
+                    );
+                    sim.on_content_updated(&long_sim_text, true, t0);
+                    let mut deadline_reached = false;
+                    let mut max_step_delta = 0.0_f32;
+                    let mut stop_pauses = 0usize;
+                    let mut was_animating = false;
+                    for _ in 0..2400 {
+                        now += std::time::Duration::from_millis(50);
+                        let prev_y = bubble.get_trans_scroll_y();
+                        let out = sim.tick(
+                            now,
+                            prev_y,
+                            bubble.get_trans_scroll_max(),
+                            bubble.get_trans_viewport_h(),
+                            bubble.get_trans_content_h(),
+                            false,
+                        );
+                        if let Some(target_y) = out.set_scroll_y {
+                            max_step_delta = max_step_delta.max((target_y - prev_y).abs());
+                            bubble.invoke_set_trans_scroll_y(target_y);
+                        }
+                        let anim_now = sim.is_animating();
+                        if was_animating && !anim_now && sim.is_active() {
+                            stop_pauses += 1;
+                        }
+                        was_animating = anim_now;
+                        if out.set_deadline_secs.is_some() {
+                            deadline_reached = true;
+                            break;
+                        }
+                    }
+                    let reached_bottom = bubble.get_trans_scroll_y() >= b_max - 4.0;
+                    let smooth_no_jumps = max_step_delta > 0.1 && max_step_delta <= 8.0;
+                    let has_stop_pauses = stop_pauses >= 1;
+
+                    // Verify manual scroll immediately yields BubbleAutoScroll
+                    bubble.invoke_scroll_to_top();
+                    let t_manual = std::time::Instant::now();
+                    let mut sim_manual = bubble_scroll::BubbleAutoScroll::new(
+                        true,
+                        bubble_scroll::BubbleReadSpeed::Normal,
+                    );
+                    sim_manual.on_content_updated(&long_sim_text, true, t_manual);
+                    bubble.invoke_set_trans_scroll_y(40.0);
+                    let _ = sim_manual.tick(
+                        t_manual + std::time::Duration::from_millis(200),
+                        bubble.get_trans_scroll_y(),
+                        bubble.get_trans_scroll_max(),
+                        bubble.get_trans_viewport_h(),
+                        bubble.get_trans_content_h(),
+                        false,
+                    );
+                    let yielded_on_manual = sim_manual.is_paused_by_user();
+
                     check(
-                        b_max > 100.0 && b_y >= b_max - 4.0,
-                        &format!("BubbleWindow auto-scroll-down reached bottom cleanly ({b_y:.1} / {b_max:.1})"),
+                        starts_at_top
+                            && deadline_reached
+                            && reached_bottom
+                            && smooth_no_jumps
+                            && has_stop_pauses
+                            && yielded_on_manual,
+                        &format!(
+                            "BubbleWindow starts at top ({b_y:.1}), glides smoothly (max_delta={max_step_delta:.2}px, pauses={stop_pauses}) to bottom ({:.1} / {b_max:.1}), and yields on manual scroll",
+                            bubble.get_trans_scroll_y()
+                        ),
                         &mut st.failures,
                     );
                     bubble.set_translate_visible(false);
@@ -6655,6 +7552,55 @@ fn schedule_ui_interaction_tests(
                         check(
                             bubble_sing_started && stopped_on_expand,
                             "Bubble singing activates orientation sprite & notes and stops immediately on HUD expand",
+                            &mut st.failures,
+                        );
+
+                        // Stage 11f: Live ID / EN application language switcher syncs all 3 windows & dynamic state
+                        panel.invoke_app_lang_selected("en".into());
+                        let en_synced = I18n::get(&panel).get_lang() == "en"
+                            && I18n::get(&hud).get_lang() == "en"
+                            && I18n::get(&bubble).get_lang() == "en"
+                            && panel.get_provider_count().as_str().contains("OF")
+                            && bubble.get_loading_label().as_str() == "Translating screen...";
+
+                        panel.invoke_app_lang_selected("id".into());
+                        let id_restored = I18n::get(&panel).get_lang() == "id"
+                            && I18n::get(&hud).get_lang() == "id"
+                            && I18n::get(&bubble).get_lang() == "id"
+                            && panel.get_provider_count().as_str().contains("DARI")
+                            && bubble.get_loading_label().as_str() == "Menerjemahkan layar...";
+
+                        check(
+                            en_synced && id_restored,
+                            "Live ID/EN language switcher synchronizes MainPanel, HudWindow, BubbleWindow and dynamic badges",
+                            &mut st.failures,
+                        );
+
+                        // Stage 11g: Tab 4 Settings Card 9 Bubble Reading Auto-Scroll toggle & speed pills
+                        panel.invoke_setting_toggled("bubble-auto-scroll".into(), false);
+                        let scroll_off = !panel.get_set_bubble_auto_scroll();
+                        panel.invoke_setting_toggled("bubble-auto-scroll".into(), true);
+                        let scroll_on = panel.get_set_bubble_auto_scroll();
+                        panel.invoke_bubble_read_speed_selected("fast".into());
+                        let fast_set = panel.get_bubble_read_speed() == "fast";
+                        panel.invoke_bubble_read_speed_selected("slow".into());
+                        let slow_set = panel.get_bubble_read_speed() == "slow";
+                        panel.invoke_bubble_read_speed_selected("normal".into());
+                        let normal_restored = panel.get_bubble_read_speed() == "normal";
+                        check(
+                            scroll_off && scroll_on && fast_set && slow_set && normal_restored,
+                            "Settings Bubble Reading Auto-Scroll toggle and Slow/Normal/Fast speed pills update cleanly",
+                            &mut st.failures,
+                        );
+
+                        // Stage 11h: Tab 4 Settings Card 10 Startup Browser Session & Cookie Sync toggle
+                        panel.invoke_setting_toggled("auto-sync-cookies".into(), false);
+                        let sync_off = !panel.get_set_auto_sync_cookies();
+                        panel.invoke_setting_toggled("auto-sync-cookies".into(), true);
+                        let sync_on = panel.get_set_auto_sync_cookies();
+                        check(
+                            sync_off && sync_on,
+                            "Settings Auto-Sync Browser Sessions toggle updates cleanly",
                             &mut st.failures,
                         );
                     }
@@ -6934,6 +7880,84 @@ mod tests {
         assert!(
             (45_000..=65_000).contains(&len_ms),
             "expected accurate ~53.3s duration (not 2x MCI bug), got {len_ms} ms"
+        );
+    }
+
+    #[test]
+    fn i18n_en_status_formatters_are_deterministic() {
+        assert_eq!(
+            super::provider_count_text_for(app_core::AppLang::Id, 1, 1, "Google Chrome"),
+            "1 DARI 1 AKTIF · GOOGLE CHROME"
+        );
+        assert_eq!(
+            super::provider_count_text_for(app_core::AppLang::En, 1, 1, "Google Chrome"),
+            "1 OF 1 ACTIVE · GOOGLE CHROME"
+        );
+
+        let base = app_core::ConnectReport {
+            success: true,
+            browser: "Google Chrome".into(),
+            profile: "Default".into(),
+            status: "READY".into(),
+            message: String::new(),
+            token_chars: 64,
+            cookies_found: 0,
+            locked_v20: 0,
+        };
+        assert_eq!(
+            super::format_vault_fetch_status_for(app_core::AppLang::En, &base),
+            "Connected: 64-char session token from Google Chrome LocalStorage."
+        );
+        let with_v20 = app_core::ConnectReport {
+            locked_v20: 3,
+            ..base.clone()
+        };
+        assert_eq!(
+            super::format_vault_fetch_status_for(app_core::AppLang::En, &with_v20),
+            "Connected: 64-char session token from Google Chrome LocalStorage · 3 v20-locked cookies."
+        );
+        let with_cookies = app_core::ConnectReport {
+            cookies_found: 2,
+            ..base.clone()
+        };
+        assert_eq!(
+            super::format_vault_fetch_status_for(app_core::AppLang::En, &with_cookies),
+            "Connected: 2 cookies + 64-char token from Google Chrome."
+        );
+        let err = app_core::ConnectReport {
+            success: false,
+            message: "Token rejected".into(),
+            ..base.clone()
+        };
+        assert_eq!(
+            super::format_vault_fetch_status_for(app_core::AppLang::En, &err),
+            "Failed: Token rejected"
+        );
+
+        let edge_ok = app_core::ConnectReport {
+            browser: "Microsoft Edge".into(),
+            profile: "Personal".into(),
+            ..base
+        };
+        let (ok_all, msg_all) = super::format_vault_fetch_all_status_for(
+            app_core::AppLang::En,
+            std::slice::from_ref(&edge_ok),
+        );
+        assert!(ok_all);
+        assert_eq!(msg_all, "Connected 1 sessions from Microsoft Edge.");
+
+        let chrome_fail = app_core::ConnectReport {
+            success: false,
+            browser: "Google Chrome".into(),
+            message: "Not signed in".into(),
+            ..edge_ok.clone()
+        };
+        let (ok_part, msg_part) =
+            super::format_vault_fetch_all_status_for(app_core::AppLang::En, &[edge_ok, chrome_fail]);
+        assert!(ok_part);
+        assert_eq!(
+            msg_part,
+            "Connected from Microsoft Edge (no session yet in Google Chrome)."
         );
     }
 }

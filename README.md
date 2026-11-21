@@ -8,17 +8,26 @@
 *Floating HUD kaca Acrylic di atas game · Translate This Screen · Vision · Multi-Browser Vault · Random Singing · 0 WebView · 0 Terminal*
 
 [![Showcase](https://img.shields.io/badge/Live_Showcase-GitHub_Pages-FF8FB1?style=for-the-badge&logo=githubpages&logoColor=070A12)](https://f4rdani.github.io/Mini-Assistant/)
+[![Release](https://img.shields.io/badge/Release-v1.1.0-3CE8FF?style=for-the-badge&logo=github&logoColor=070A12)](https://github.com/f4rdani/Mini-Assistant/releases/latest)
 [![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-3CE8FF?style=for-the-badge&logo=windows&logoColor=070A12)](https://github.com/f4rdani/Mini-Assistant/releases/latest)
 [![Stack](https://img.shields.io/badge/Rust_+_Slint-100%25_Native-2CE59B?style=for-the-badge&logo=rust&logoColor=070A12)](#arsitektur)
-[![Size](https://img.shields.io/badge/Portable_ZIP-9.59_MB-FFD166?style=for-the-badge)](#unduh--jalankan-portable)
+[![Size](https://img.shields.io/badge/Portable_ZIP-9.64_MB-FFD166?style=for-the-badge)](https://github.com/f4rdani/Mini-Assistant/releases/latest/download/Mini-Assistant-Portable.zip)
 
-[**🌐 Buka Halaman Showcase HTML**](https://f4rdani.github.io/Mini-Assistant/) · [**⬇️ Unduh Versi Portable**](https://github.com/f4rdani/Mini-Assistant/releases/latest) · [**📊 Benchmark RAM & CPU**](#pantauan-performa-ram--cpu)
+[**🌐 Buka Halaman Showcase HTML**](https://f4rdani.github.io/Mini-Assistant/) · [**⬇️ Unduh v1.1.0 Portable**](https://github.com/f4rdani/Mini-Assistant/releases/latest) · [**📊 Benchmark RAM & CPU**](#pantauan-performa-ram--cpu)
 
 </div>
 
 ---
 
 ## ✨ Cuplikan Antarmuka
+
+<div align="center">
+  <img src="docs/assets/screenshots/showcase-translate-ingame.jpg" alt="Showcase Translate Dialog Game Real-Time (Alt+T)" width="880" />
+  <br />
+  <sub><em>Showcase nyata in-game: menekan <code>Alt+T</code> menampilkan terjemahan dialog langsung di bubble maskot Aemeath di tepi layar dengan auto-scroll 60 FPS stop-and-glide.</em></sub>
+</div>
+
+<br />
 
 | Floating HUD (DWM Acrylic + Rich Markdown) | Diagnostik Sistem (Live RAM & CPU Monitor) |
 | :---: | :---: |
@@ -34,7 +43,7 @@
 
 ## 📊 Pantauan Performa (RAM & CPU)
 
-Tidak ada WebView2, tidak ada Chromium, tidak ada Node.js. Seluruh antarmuka dirender secara native oleh **Slint (software renderer)** dengan server API **Axum** tertanam *in-process* dalam **satu berkas `MiniAssistant.exe`** (`15,54 MB`, arsip ZIP `9,59 MB`, `PE Subsystem = WINDOWS_GUI` — **0 jendela terminal**).
+Tidak ada WebView2, tidak ada Chromium, tidak ada Node.js. Seluruh antarmuka dirender secara native oleh **Slint (software renderer)** dengan server API **Axum** tertanam *in-process* dalam **satu berkas `MiniAssistant.exe`** (`15,67 MB`, arsip ZIP `9,64 MB`, `PE Subsystem = WINDOWS_GUI` — **0 jendela terminal**).
 
 Pengukuran nyata pada paket rilis portable `MiniAssistant.exe` (Windows 12-core, termasuk UI + Embedded API Server dalam 1 proses):
 
@@ -47,27 +56,28 @@ Pengukuran nyata pada paket rilis portable `MiniAssistant.exe` (Windows 12-core,
 
 ---
 
-## 🚀 Fitur Utama
+## 🚀 Fitur Utama (`v1.1.0`)
 
 - **Floating HUD Overlay & Auto Window Context** — panggil overlay kaca DWM Acrylic secara instan dengan hotkey global (`Shift+Q` / `Alt+Q`). Judul & kategori sesi otomatis mengikuti jendela aktif (`[Game] ...`, `[Dev] ...`).
-- **Translate This Screen & Multi-Turn Vision** — tekan `Alt+T` untuk menangkap jendela aktif (otomatis menyembunyikan HUD) dan menampilkan terjemahan langsung pada *speech bubble* maskot Aemeath. Lampiran gambar di-upload sekali dan diingat antar-turn.
+- **Translate This Screen, Vision & Auto-Scroll 60 FPS (*Stop-and-Glide*)** — tekan `Alt+T` untuk menangkap jendela aktif langsung ke *speech bubble* maskot Aemeath. Teks panjang bergulir perlahan lalu berhenti bertahap pada **60 FPS** sesuai kecepatan baca manusia (`Slow` / `Normal` / `Fast`), otomatis jeda saat *hover*, dan menyerah penuh jika Anda scroll manual.
+- **Switch Bahasa In-App Langsung (`ID` / `EN`)** — ubah bahasa seluruh antarmuka (Control Panel, Floating HUD, Bubble, hingga label status) secara *real-time* antara Bahasa Indonesia & English dan langsung tersimpan ke database lokal.
+- **Persistensi Cookie Atomik & Auto-Sync Startup** — ekstraksi `userToken` dari LevelDB Chrome & Microsoft Edge secara otomatis saat startup, tersimpan secara atomik dengan cadangan `accounts.json.bak`, memiliki **Priority-First Key Pool**, serta melakukan *auto-refresh* transparan bila sesi kedaluwarsa (`40003` / `401`).
 - **Rich Markdown, Reasoning & Web Search** — mendukung chip penalaran (*Berpikir selama N detik*), sitasi pencarian web interaktif, heading, checklist, blockquote, tabel lebar, blok kode siap salin, emoji berwarna Direct2D/COLRv1, dan zoom lightbox SVG/PNG.
-- **Multi-Browser Session Vault (Chrome & Edge)** — mengekstrak `userToken` dari LevelDB Chrome dan Microsoft Edge secara otomatis dengan verifikasi live, **Priority-First Key Pool**, uji koneksi per-key terisolasi, serta **automatic failover** saat terkena rate limit.
 - **Random Singing & Guard RAM ≥ 85%** — saat Bubble idle, Aemeath dapat bernyanyi dengan sprite animasi, not musik `♪♫`, dan pipeline audio modern **Media Foundation + WASAPI** — otomatis berhenti dan membebaskan buffer jika RAM sistem ≥ 85%.
-- **100% Portable & Single-Instance** — seluruh data (`mini_assistant.db`, `accounts.json`, cache sementara) tersimpan di folder `./data/` lokal. Klik ganda saat aplikasi sudah aktif otomatis memfokuskan jendela tanpa membuat proses duplikat.
+- **100% Portable & Single-Instance** — seluruh data (`mini_assistant.db`, `accounts.json`, `.bak`, cache sementara) tersimpan di folder `./data/` lokal yang ikut dipertahankan saat rebuild portable.
 
 ### 🗺️ Roadmap
-- **Switch Bahasa In-App (`ID` / `EN`)** — pergantian bahasa antarmuka Bahasa Indonesia & English langsung di dalam aplikasi desktop (sudah aktif di halaman showcase web).
 - **Perluasan Provider Modular** — dukungan preset provider tambahan berbasis OpenAI-compatible API.
+- **Pintasan Kustom Per-Game Profile** — profil bahasa target translate & kecepatan baca terpisah berdasarkan judul jendela game/aplikasi.
 
 ---
 
 ## 📦 Unduh & Jalankan (Portable)
 
-1. Unduh **`Mini-Assistant-Portable.zip`** (`9.59 MB`) dari [GitHub Releases](https://github.com/f4rdani/Mini-Assistant/releases/latest).
+1. Unduh **`Mini-Assistant-Portable.zip`** (`9.64 MB`) dari [GitHub Releases](https://github.com/f4rdani/Mini-Assistant/releases/latest).
 2. Ekstrak ke folder mana saja (tidak perlu installer dan tidak memerlukan skrip `.bat`).
-3. Klik ganda **`MiniAssistant.exe`** — Floating HUD dan server API lokal langsung aktif tanpa jendela terminal.
-4. Buka **Pengaturan → Browser & Cookies**, lalu klik **Ambil Semua Browser** (pastikan sudah login di Chrome atau Microsoft Edge).
+3. Klik ganda **`MiniAssistant.exe`** — Floating HUD, server API lokal, dan auto-sync sesi langsung aktif tanpa jendela terminal.
+4. Pastikan sudah login di Chrome atau Microsoft Edge (atau buka **Pengaturan → Browser & Cookies** untuk kelola multi-akun).
 
 ---
 
@@ -77,9 +87,9 @@ Proyek ini mendukung **dua mode build** dari satu basis kode Rust:
 
 ```text
 [Consumer Release Portable — 1 File]
-MiniAssistant.exe (15.54 MB) = ui-native (Slint) + app-core + backend-api-ai (embedded in-process)
+MiniAssistant.exe (15.67 MB) = ui-native (Slint) + app-core + backend-api-ai (embedded in-process)
   ├── assets/   (42 file sprite Aemeath, logo & musik — 1.68 MB)
-  └── data/     (mini_assistant.db, accounts.json, cache — 100% portable)
+  └── data/     (mini_assistant.db, accounts.json (.bak), cache — 100% portable)
 
 [Development Mode — 3 Crate Modular Terpisah]
 ui-native/          binary  Slint UI (Control Panel, Floating HUD, Bubble) + Win32/WASAPI

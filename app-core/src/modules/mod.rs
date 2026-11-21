@@ -1,6 +1,7 @@
 pub mod clipboard;
 pub mod cookie_extractor;
 pub mod hotkey;
+pub mod i18n;
 pub mod leveldb_reader;
 pub mod screen_capture;
 pub mod storage;

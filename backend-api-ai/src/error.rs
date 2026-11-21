@@ -8,6 +8,7 @@ pub enum AppError {
     BadRequest(String),
     Unauthorized(String),
     Upstream(String),
+    Internal(String),
     NoAccount,
     Busy,
     TooLarge(String),
@@ -19,6 +20,7 @@ impl std::fmt::Display for AppError {
             AppError::BadRequest(m) => write!(f, "bad request: {m}"),
             AppError::Unauthorized(m) => write!(f, "unauthorized: {m}"),
             AppError::Upstream(m) => write!(f, "upstream: {m}"),
+            AppError::Internal(m) => write!(f, "internal error: {m}"),
             AppError::NoAccount => write!(f, "no account configured"),
             AppError::Busy => write!(f, "all accounts busy"),
             AppError::TooLarge(m) => write!(f, "too large: {m}"),
@@ -34,6 +36,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, "invalid_request_error", m),
             AppError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, "authentication_error", m),
             AppError::Upstream(m) => (StatusCode::BAD_GATEWAY, "upstream_error", m),
+            AppError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", m),
             AppError::Busy => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limit_exceeded",

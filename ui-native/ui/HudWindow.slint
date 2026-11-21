@@ -1,4 +1,5 @@
 import { Tokens, Icons } from "theme.slint";
+import { I18n } from "i18n.slint";
 import { Icon, AemeathAvatar, Equalizer, HudAction, OrbitalSwitch } from "components.slint";
 import { ScrollView } from "std-widgets.slint";
 import { AttachmentItem, HudMessage, SearchSourceItem, ChatLayout } from "model.slint";
@@ -88,8 +89,8 @@ export component HudWindow inherits Window {
     in property <bool> status-visible: false;
     // Only promises a screenshot when auto-capture is actually on.
     in property <string> placeholder: root.auto-capture
-        ? "Tulis pesan (layar otomatis dijepret)..."
-        : "Tanya apa saja...";
+        ? I18n.t("Tulis pesan (layar otomatis dijepret)...", "Type a message (auto screen capture)...")
+        : I18n.t("Tanya apa saja...", "Ask anything...");
     // Multiple pending attachments (screenshots captured with camera button,
     // files attached via +, or clipboard Ctrl+V pastes).
     in property <[AttachmentItem]> attachments: [];
@@ -586,7 +587,7 @@ export component HudWindow inherits Window {
                                         }
                                         Text {
                                             vertical-alignment: center;
-                                            text: m.think-label == "" ? "Berpikir" : m.think-label;
+                                            text: m.think-label == "" ? I18n.t("Berpikir", "Thinking") : m.think-label;
                                             color: #B4C3D6;
                                             font-family: Tokens.font-sans;
                                             font-size: 12px;
@@ -637,7 +638,7 @@ export component HudWindow inherits Window {
                                             Icon { y: (parent.height - 11px) / 2; size: 11px; name: "search"; tint: #38BDF8; }
                                             Text {
                                                 vertical-alignment: center;
-                                                text: "Ditemukan " + m.search-count + " halaman web";
+                                                text: I18n.t("Ditemukan ", "Found ") + m.search-count + I18n.t(" halaman web", " web pages");
                                                 color: #CBD5E1;
                                                 font-family: Tokens.font-sans;
                                                 font-size: 11px;
@@ -650,7 +651,7 @@ export component HudWindow inherits Window {
                                             Icon { y: (parent.height - 11px) / 2; size: 11px; name: "book"; tint: #A78BFA; }
                                             Text {
                                                 vertical-alignment: center;
-                                                text: "Membaca " + (m.sources.length < 5 ? m.sources.length : 5) + " halaman";
+                                                text: I18n.t("Membaca ", "Reading ") + (m.sources.length < 5 ? m.sources.length : 5) + I18n.t(" halaman", " pages");
                                                 color: #CBD5E1;
                                                 font-family: Tokens.font-sans;
                                                 font-size: 11px;
@@ -1011,7 +1012,7 @@ export component HudWindow inherits Window {
                                                         }
                                                         Text {
                                                             vertical-alignment: center;
-                                                            text: code-copy-btn.copied-flash ? "Disalin" : "Salin";
+                                                            text: code-copy-btn.copied-flash ? I18n.t("Disalin", "Copied") : I18n.t("Salin", "Copy");
                                                             color: code-copy-btn.copied-flash ? #3CE8FF : #D2DEE9;
                                                             font-family: Tokens.font-sans;
                                                             font-size: 10px;
@@ -1227,7 +1228,9 @@ export component HudWindow inherits Window {
                                             }
                                             Text {
                                                 horizontal-stretch: 1;
-                                                text: blk.img-caption != "" ? ("Memuat gambar: " + blk.img-caption + "...") : "Memuat gambar...";
+                                                text: blk.img-caption != ""
+                                                    ? (I18n.t("Memuat gambar: ", "Loading image: ") + blk.img-caption + "...")
+                                                    : I18n.t("Memuat gambar...", "Loading image...");
                                                 color: #93D5FF;
                                                 font-family: root.chat-font-family;
                                                 font-size: max(11px, (root.chat-font-px - 2.0) * 1px);
@@ -1265,7 +1268,7 @@ export component HudWindow inherits Window {
                                                         x: 7px; y: 0;
                                                         height: parent.height;
                                                         vertical-alignment: center;
-                                                        text: "Buka Tautan ↗";
+                                                        text: I18n.t("Buka Tautan ↗", "Open Link ↗");
                                                         color: #5CE1FF;
                                                         font-family: Tokens.font-sans;
                                                         font-size: 10px;
@@ -1343,7 +1346,7 @@ export component HudWindow inherits Window {
                                                     Text {
                                                         horizontal-stretch: 1;
                                                         vertical-alignment: center;
-                                                        text: blk.img-caption != "" ? blk.img-caption : (blk.lang == "svg" ? "Diagram SVG" : "Gambar");
+                                                        text: blk.img-caption != "" ? blk.img-caption : (blk.lang == "svg" ? I18n.t("Diagram SVG", "SVG Diagram") : I18n.t("Gambar", "Image"));
                                                         color: #CBD5E1;
                                                         font-family: root.chat-font-family;
                                                         font-size: 11px;
@@ -1371,7 +1374,7 @@ export component HudWindow inherits Window {
                                                             }
                                                             Text {
                                                                 vertical-alignment: center;
-                                                                text: svg-copy-btn.copied-svg ? "Disalin" : "SVG";
+                                                                text: svg-copy-btn.copied-svg ? I18n.t("Disalin", "Copied") : "SVG";
                                                                 color: svg-copy-btn.copied-svg ? #3CE8FF : #D2DEE9;
                                                                 font-family: Tokens.font-sans;
                                                                 font-size: 10px;
@@ -1401,7 +1404,7 @@ export component HudWindow inherits Window {
                                                             height: parent.height;
                                                             horizontal-alignment: center;
                                                             vertical-alignment: center;
-                                                            text: "Buka";
+                                                            text: I18n.t("Buka", "Open");
                                                             color: #93D5FF;
                                                             font-family: Tokens.font-sans;
                                                             font-size: 10px;
@@ -1461,14 +1464,14 @@ export component HudWindow inherits Window {
                                     alignment: space-between;
                                     Text {
                                         vertical-alignment: center;
-                                        text: "Mode Pilih · Tarik teks lalu Ctrl+C";
+                                        text: I18n.t("Mode Pilih · Tarik teks lalu Ctrl+C", "Select Mode · Drag text then Ctrl+C");
                                         color: #7DD3FC;
                                         font-family: Tokens.font-sans;
                                         font-size: 11px;
                                         font-weight: 600;
                                     }
                                     Rectangle {
-                                        width: 88px; height: 22px;
+                                        width: 96px; height: 22px;
                                         border-radius: 6px;
                                         background: m.select-copied ? #0E334D : (sel-copy-ta.has-hover ? #1E293B : #151E2E);
                                         border-width: 1px;
@@ -1477,7 +1480,7 @@ export component HudWindow inherits Window {
                                             width: 100%; height: 100%;
                                             horizontal-alignment: center;
                                             vertical-alignment: center;
-                                            text: m.select-copied ? "Disalin!" : "Salin Pilihan";
+                                            text: m.select-copied ? I18n.t("Disalin!", "Copied!") : I18n.t("Salin Pilihan", "Copy Selection");
                                             color: m.select-copied ? #38BDF8 : #E2E8F0;
                                             font-family: Tokens.font-sans;
                                             font-size: 11px;
@@ -1562,7 +1565,7 @@ export component HudWindow inherits Window {
                                     }
                                     Text {
                                         vertical-alignment: center;
-                                        text: m.search-count + " halaman web";
+                                        text: m.search-count + I18n.t(" halaman web", " web pages");
                                         color: #E2E8F0;
                                         font-family: Tokens.font-sans;
                                         font-size: 12px;
@@ -1586,7 +1589,7 @@ export component HudWindow inherits Window {
                                 alignment: start;
 
                                 Text {
-                                    text: "Sumber Pencarian (" + m.sources.length + ")";
+                                    text: I18n.t("Sumber Pencarian (", "Search Sources (") + m.sources.length + ")";
                                     color: #64748B;
                                     font-family: Tokens.font-mono;
                                     font-size: 10px;
@@ -1657,14 +1660,14 @@ export component HudWindow inherits Window {
                                 alignment: space-between;
                                 Text {
                                     vertical-alignment: center;
-                                    text: "Gagal menghubungi model.";
+                                    text: I18n.t("Gagal menghubungi model.", "Failed to reach model.");
                                     color: #FCA5A5; font-family: Tokens.font-sans; font-size: 12px;
                                 }
                                 Rectangle {
                                     width: 78px; height: 20px;
                                     background: #FF477E26; border-radius: 10px;
                                     Text {
-                                        width: parent.width; height: parent.height; text: "Coba lagi"; color: #FFA9C3; font-family: Tokens.font-sans; font-size: 11px; horizontal-alignment: center; vertical-alignment: center;
+                                        width: parent.width; height: parent.height; text: I18n.t("Coba lagi", "Try again"); color: #FFA9C3; font-family: Tokens.font-sans; font-size: 11px; horizontal-alignment: center; vertical-alignment: center;
                                     }
                                     TouchArea { clicked => { root.retry-request(idx); } }
                                 }
@@ -1678,24 +1681,24 @@ export component HudWindow inherits Window {
                             height: 24px;
                             HudAction {
                                 icon-name: m.copied ? "check" : "copy";
-                                label: m.copied ? "Disalin" : "Salin";
+                                label: m.copied ? I18n.t("Disalin", "Copied") : I18n.t("Salin", "Copy");
                                 active: m.copied;
                                 clicked => { root.copy-message(idx); }
                             }
                             HudAction {
                                 icon-name: m.select-mode ? "check" : "edit";
-                                label: m.select-mode ? "Tutup Pilih" : "Salin Sebagian";
+                                label: m.select-mode ? I18n.t("Tutup Pilih", "Exit Select") : I18n.t("Salin Sebagian", "Partial Copy");
                                 active: m.select-mode;
                                 clicked => { root.open-partial-copy(idx); }
                             }
                             HudAction {
                                 icon-name: "refresh";
-                                label: "Ulangi";
+                                label: I18n.t("Ulangi", "Retry");
                                 clicked => { root.retry-request(idx); }
                             }
                             HudAction {
                                 icon-name: m.detail-open ? "chevron-up" : "info";
-                                label: m.detail-open ? "Tutup" : "Detail";
+                                label: m.detail-open ? I18n.t("Tutup", "Close") : I18n.t("Detail", "Details");
                                 active: m.detail-open;
                                 clicked => { root.toggle-detail(idx); }
                             }
@@ -1714,7 +1717,7 @@ export component HudWindow inherits Window {
                                 HorizontalLayout {
                                     spacing: 6px; alignment: start;
                                     Icon { y: (parent.height - 11px) / 2; size: 11px; name: "cpu"; tint: #3CE8FF; }
-                                    Text { vertical-alignment: center; text: "Detail Respons:"; color: #94A3B8; font-family: Tokens.font-mono; font-size: 10px; }
+                                    Text { vertical-alignment: center; text: I18n.t("Detail Respons:", "Response Details:"); color: #94A3B8; font-family: Tokens.font-mono; font-size: 10px; }
                                 }
                                 Text { vertical-alignment: center; text: m.meta; color: #3CE8FF; font-family: Tokens.font-mono; font-size: 10px; font-weight: 600; }
                             }
@@ -1779,7 +1782,7 @@ export component HudWindow inherits Window {
             }
             Text {
                 vertical-alignment: center;
-                text: "Ke bawah";
+                text: I18n.t("Ke bawah", "Scroll down");
                 color: #E2F1FF;
                 font-family: Tokens.font-sans;
                 font-size: 11px;
@@ -2009,7 +2012,7 @@ export component HudWindow inherits Window {
         width: parent.width - 156px;
         height: 44px;
         vertical-alignment: center;
-        text: root.auto-capture ? "Tulis pesan (auto-capture)..." : "Tulis pesan...";
+        text: root.auto-capture ? I18n.t("Tulis pesan (auto-capture)...", "Type a message (auto-capture)...") : I18n.t("Tulis pesan...", "Type a message...");
         color: #7E8798;
         font-family: Tokens.font-sans;
         font-size: 13px;
@@ -2178,7 +2181,7 @@ export component HudWindow inherits Window {
                     spacing: 6px;
                     alignment: start;
                     Text {
-                        text: "MODEL AI";
+                        text: I18n.t("MODEL AI", "AI MODEL");
                         color: Tokens.halo-cyan;
                         font-family: Tokens.font-display;
                         font-size: 10px;
@@ -2222,7 +2225,7 @@ export component HudWindow inherits Window {
                     HorizontalLayout {
                         alignment: space-between;
                         Text {
-                            text: "SESI / TOPIK";
+                            text: I18n.t("SESI / TOPIK", "SESSIONS / TOPICS");
                             color: Tokens.halo-cyan;
                             font-family: Tokens.font-display;
                             font-size: 10px;
@@ -2230,10 +2233,10 @@ export component HudWindow inherits Window {
                             letter-spacing: 0.5px;
                         }
                         Rectangle {
-                            width: 80px; height: 18px;
+                            width: 98px; height: 18px;
                             Text {
                                 width: parent.width; height: parent.height;
-                                text: "+ Sesi Baru";
+                                text: I18n.t("+ Sesi Baru", "+ New Session");
                                 color: Tokens.aemeath-pink;
                                 font-family: Tokens.font-display;
                                 font-size: 11px;
@@ -2271,7 +2274,7 @@ export component HudWindow inherits Window {
                                 font-weight: 500;
                             }
                             if root.current-topic == tstr : Rectangle {
-                                width: 38px; height: 16px;
+                                width: 44px; height: 16px;
                                 y: (parent.height - 16px) / 2;
                                 background: #FFD16626;
                                 border-width: 1px;
@@ -2279,7 +2282,7 @@ export component HudWindow inherits Window {
                                 border-radius: 4px;
                                 Text {
                                     width: parent.width; height: parent.height;
-                                    text: "Aktif";
+                                    text: I18n.t("Aktif", "Active");
                                     color: Tokens.polestar-gold;
                                     font-family: Tokens.font-mono;
                                     font-size: 9px;
@@ -2315,9 +2318,9 @@ export component HudWindow inherits Window {
                             horizontal-stretch: 1;
 
                             Text {
-                                text: idx == 0 ? "Auto-Capture Layar"
-                                    : idx == 1 ? "Sertakan Jendela App"
-                                    : idx == 2 ? "Target Window (Game/App)"
+                                text: idx == 0 ? I18n.t("Auto-Capture Layar", "Auto-Capture Screen")
+                                    : idx == 1 ? I18n.t("Sertakan Jendela App", "Include App Window")
+                                    : idx == 2 ? I18n.t("Target Window (Game/App)", "Target Window (Game/App)")
                                     : "Temp Chat";
                                 color: #F4F7FB;
                                 font-family: Tokens.font-sans;
@@ -2326,10 +2329,10 @@ export component HudWindow inherits Window {
                             }
                             Text {
                                 overflow: elide;
-                                text: idx == 0 ? "Jepret otomatis saat kirim pesan"
-                                    : idx == 1 ? "Ikutkan Mini Assistant saat dijepret"
-                                    : idx == 2 ? "Jepret hanya jendela aktif, bukan desktop"
-                                    : "Percakapan sementara tanpa riwayat";
+                                text: idx == 0 ? I18n.t("Jepret otomatis saat kirim pesan", "Capture automatically when sending")
+                                    : idx == 1 ? I18n.t("Ikutkan Mini Assistant saat dijepret", "Include Mini Assistant in captures")
+                                    : idx == 2 ? I18n.t("Jepret hanya jendela aktif, bukan desktop", "Capture active window only, not desktop")
+                                    : I18n.t("Percakapan sementara tanpa riwayat", "Temporary chat without saving history");
                                 color: #CBD5E1;
                                 font-family: Tokens.font-sans;
                                 font-size: 11px;
@@ -2389,7 +2392,7 @@ export component HudWindow inherits Window {
                         }
                         Text {
                             vertical-alignment: center;
-                            text: "Control Panel Penuh";
+                            text: I18n.t("Control Panel Penuh", "Full Control Panel");
                             color: Tokens.halo-cyan;
                             font-family: Tokens.font-sans;
                             font-size: 12px;
@@ -2455,8 +2458,8 @@ export component HudWindow inherits Window {
                     Text {
                         vertical-alignment: center;
                         text: root.search-modal-count > root.search-modal-sources.length
-                            ? "Hasil pencarian (" + root.search-modal-count + ")"
-                            : "Hasil pencarian";
+                            ? I18n.t("Hasil pencarian (", "Search results (") + root.search-modal-count + ")"
+                            : I18n.t("Hasil pencarian", "Search results");
                         color: #F8FAFC;
                         font-family: Tokens.font-display;
                         font-size: 15px;
@@ -2646,7 +2649,7 @@ export component HudWindow inherits Window {
                         horizontal-stretch: 1;
                         vertical-alignment: center;
                         overflow: elide;
-                        text: root.lightbox-caption != "" ? root.lightbox-caption : (root.lightbox-raw != "" ? "Pratinjau Diagram SVG" : "Pratinjau Gambar");
+                        text: root.lightbox-caption != "" ? root.lightbox-caption : (root.lightbox-raw != "" ? I18n.t("Pratinjau Diagram SVG", "SVG Diagram Preview") : I18n.t("Pratinjau Gambar", "Image Preview"));
                         color: #F1F5FA;
                         font-family: Tokens.font-sans;
                         font-size: 12px;
@@ -2668,7 +2671,7 @@ export component HudWindow inherits Window {
                             height: parent.height;
                             horizontal-alignment: center;
                             vertical-alignment: center;
-                            text: lb-copy-btn.copied ? "Disalin!" : "Salin SVG";
+                            text: lb-copy-btn.copied ? I18n.t("Disalin!", "Copied!") : I18n.t("Salin SVG", "Copy SVG");
                             color: #3CE8FF;
                             font-family: Tokens.font-sans;
                             font-size: 11px;
@@ -2697,7 +2700,7 @@ export component HudWindow inherits Window {
                             height: parent.height;
                             horizontal-alignment: center;
                             vertical-alignment: center;
-                            text: "Buka ↗";
+                            text: I18n.t("Buka ↗", "Open ↗");
                             color: #93D5FF;
                             font-family: Tokens.font-sans;
                             font-size: 11px;

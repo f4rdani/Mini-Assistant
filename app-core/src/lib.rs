@@ -26,6 +26,7 @@ pub use modules::hotkey::{
     simulate_translate_hotkey, start_global_hotkey_listener, update_global_hotkey,
     update_translate_hotkey,
 };
+pub use modules::i18n::{current_lang, is_en, set_lang, tr, tr_for, AppLang};
 pub use modules::screen_capture::{capture_screen_base64, capture_target_window_or_screen_base64};
 pub use modules::storage::{
     is_portable_mode, portable_accounts_path, portable_cache_dir, resolve_data_dir, topic_label,
@@ -162,6 +163,11 @@ impl Core {
             return ConnectReport {
                 message: if !diag.message.is_empty() {
                     diag.message.clone()
+                } else if is_en() {
+                    format!(
+                        "DeepSeek session not found in {} (profile '{}'). Status: {}. Please sign in to that profile first.",
+                        profile.browser_name, profile.profile_name, diag.status_code
+                    )
                 } else {
                     format!(
                         "Sesi DeepSeek tidak ditemukan di {} (profil '{}'). Status: {}. Login dulu di profil itu.",
@@ -203,7 +209,11 @@ impl Core {
             .await
             {
                 Ok(r) => r,
-                Err(_) => Err("provider API tidak merespons (timeout 15s)".to_string()),
+                Err(_) => Err(tr(
+                    "provider API tidak merespons (timeout 15s)",
+                    "provider API did not respond (15s timeout)",
+                )
+                .to_string()),
             }
         });
         match registered {
@@ -214,10 +224,17 @@ impl Core {
                 ConnectReport {
                     success: true,
                     status: "READY".to_string(),
-                    message: format!(
-                        "Sesi DeepSeek dari {} (profil '{}') terpasang ke provider API.",
-                        profile.browser_name, profile.profile_name
-                    ),
+                    message: if is_en() {
+                        format!(
+                            "DeepSeek session from {} (profile '{}') connected to provider API.",
+                            profile.browser_name, profile.profile_name
+                        )
+                    } else {
+                        format!(
+                            "Sesi DeepSeek dari {} (profil '{}') terpasang ke provider API.",
+                            profile.browser_name, profile.profile_name
+                        )
+                    },
                     ..base
                 }
             }
@@ -231,6 +248,34 @@ impl Core {
             .iter()
             .map(|p| self.connect_deepseek(p))
             .collect()
+    }
+
+    /// Startup background sync:
+    /// - When the API pool is empty (and `allow_empty_sync` is true), imports
+    ///   available DeepSeek sessions from Chrome/Edge automatically.
+    /// - When accounts exist, performs a quick token validity check against DeepSeek;
+    ///   only if DeepSeek explicitly rejects the stored token (`Invalid`, not offline),
+    ///   silently refreshes fresh sessions from installed browsers.
+    pub fn auto_sync_startup_sessions(&self, allow_empty_sync: bool) -> Option<Vec<ConnectReport>> {
+        let current = self.deepseek_accounts();
+        if current.is_empty() {
+            if !allow_empty_sync {
+                return None;
+            }
+            return Some(self.connect_deepseek_all_browsers());
+        }
+        if let Some(tok) = read_primary_saved_token() {
+            if matches!(
+                modules::cookie_extractor::verify_deepseek_token(&tok),
+                modules::cookie_extractor::TokenVerifyStatus::Invalid(_)
+            ) {
+                let reports = self.connect_deepseek_all_browsers();
+                if reports.iter().any(|r| r.success) {
+                    return Some(reports);
+                }
+            }
+        }
+        None
     }
 
     // --------------------------------------------------------------- provider
@@ -481,7 +526,8 @@ impl Core {
         let _enter = self.rt.enter();
         let provider = self.provider.clone();
         self.rt.spawn(async move {
-            for attempt in 0..2 {
+            let mut refreshed_auth = false;
+            'attempts: for attempt in 0..2 {
                 let mut req_attempt = req.clone();
                 let mut uploaded_ids: Vec<String> = Vec::new();
                 let mut uploaded_parts: Vec<serde_json::Value> = Vec::new();
@@ -495,7 +541,16 @@ impl Core {
                             }));
                         }
                         Err(e) => {
-                            let _ = tx.send(ChatEvent::Error(format!("Lampiran gagal diunggah: {e}")));
+                            if attempt == 0
+                                && !refreshed_auth
+                                && is_auth_or_empty_pool_error(&e)
+                                && refresh_browser_sessions_async(&provider).await > 0
+                            {
+                                refreshed_auth = true;
+                                continue 'attempts;
+                            }
+                            let prefix = tr("Lampiran gagal diunggah", "Attachment upload failed");
+                            let _ = tx.send(ChatEvent::Error(format!("{prefix}: {e}")));
                             return;
                         }
                     }
@@ -540,12 +595,20 @@ impl Core {
                                 }
                             }
                         }
-                        ChatEvent::Error(_)
-                            if attempt == 0 && !saw_output && !attachment_paths.is_empty() =>
-                        {
-                            // Backend cooled down failed key; re-upload attachment once onto fallback key.
-                            retry_needed = true;
-                            break;
+                        ChatEvent::Error(ref err) if attempt == 0 && !saw_output => {
+                            if !refreshed_auth
+                                && is_auth_or_empty_pool_error(err)
+                                && refresh_browser_sessions_async(&provider).await > 0
+                            {
+                                refreshed_auth = true;
+                                retry_needed = true;
+                                break;
+                            }
+                            if !attachment_paths.is_empty() {
+                                // Backend cooled down failed key; re-upload attachment once onto fallback key.
+                                retry_needed = true;
+                                break;
+                            }
                         }
                         _ => {}
                     }
@@ -806,6 +869,142 @@ pub fn fetch_image_bytes(url: &str) -> Result<(Vec<u8>, Option<String>), String>
     Ok((buf, content_type))
 }
 
+/// Returns `true` when an upstream or provider-API error indicates empty account
+/// pool or expired/rejected DeepSeek session credentials suitable for auto-refresh.
+pub fn is_auth_or_empty_pool_error(msg: &str) -> bool {
+    let lower = msg.to_ascii_lowercase();
+    [
+        "no deepseek account",
+        "no account",
+        "40002",
+        "40003",
+        "401",
+        "invalid token",
+        "token invalid",
+        "expired",
+        "authorization failed",
+    ]
+    .iter()
+    .any(|p| lower.contains(p))
+}
+
+fn read_primary_saved_token() -> Option<String> {
+    let mut candidates = Vec::new();
+    if let Ok(env_path) = std::env::var("DS_ACCOUNTS_FILE") {
+        let trimmed = env_path.trim();
+        if !trimmed.is_empty() {
+            candidates.push(std::path::PathBuf::from(trimmed));
+        }
+    }
+    candidates.push(portable_accounts_path());
+
+    for path in candidates {
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(&content) else {
+            continue;
+        };
+        for acc in arr {
+            if let Some(tok) = acc
+                .get("token")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                return Some(tok.to_string());
+            }
+            if let Some(cookie) = acc.get("cookie").and_then(|v| v.as_str()) {
+                for part in cookie.split(';') {
+                    if let Some(rest) = part.trim().strip_prefix("userToken=") {
+                        let t = rest.trim();
+                        if !t.is_empty() {
+                            return Some(t.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+struct ExtractedBrowserSession {
+    slot: String,
+    token: String,
+    cookie_header: String,
+    browser_type: String,
+    profile_name: String,
+    verified_email: String,
+}
+
+async fn refresh_browser_sessions_async(provider: &ProviderClient) -> usize {
+    let extracted = tokio::task::spawn_blocking(|| {
+        let mut out = Vec::new();
+        for profile in modules::cookie_extractor::scan_available_browsers() {
+            let diag = modules::cookie_extractor::diagnose_cookie_extraction(&profile, "deepseek");
+            if !diag.success {
+                continue;
+            }
+            let token = diag
+                .cookies_map
+                .get("userToken")
+                .cloned()
+                .or_else(|| diag.cookies_map.get("d_token").cloned())
+                .unwrap_or_default();
+            let trimmed = token.trim().to_string();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let verified_email = diag
+                .account_label
+                .clone()
+                .filter(|s| !s.trim().is_empty() && s != "Offline")
+                .or_else(|| {
+                    if let modules::cookie_extractor::TokenVerifyStatus::Valid(email) =
+                        modules::cookie_extractor::verify_deepseek_token(&trimmed)
+                    {
+                        Some(email)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default();
+            out.push(ExtractedBrowserSession {
+                slot: account_slot_name(&profile),
+                token: trimmed,
+                cookie_header: diag.cookie_header,
+                browser_type: profile.browser_type,
+                profile_name: profile.profile_name,
+                verified_email,
+            });
+        }
+        out
+    })
+    .await
+    .unwrap_or_default();
+
+    let mut registered = 0usize;
+    for sess in extracted {
+        if let Ok(Ok(())) = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            provider.register_account_with_meta(
+                &sess.slot,
+                &sess.token,
+                &sess.cookie_header,
+                &sess.browser_type,
+                &sess.profile_name,
+                &sess.verified_email,
+            ),
+        )
+        .await
+        {
+            registered += 1;
+        }
+    }
+    registered
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -829,5 +1028,19 @@ mod tests {
         assert_eq!(account_slot_name(&chrome), "chrome:Default");
         assert_eq!(account_slot_name(&edge), "edge:Default");
         assert_ne!(account_slot_name(&chrome), account_slot_name(&edge));
+    }
+
+    #[test]
+    fn detects_auth_and_empty_pool_errors_for_auto_refresh() {
+        assert!(is_auth_or_empty_pool_error(
+            "No DeepSeek account configured. POST /admin/accounts"
+        ));
+        assert!(is_auth_or_empty_pool_error(
+            "upstream 40003: token invalid/expired"
+        ));
+        assert!(is_auth_or_empty_pool_error("HTTP 401 Unauthorized"));
+        assert!(is_auth_or_empty_pool_error("upload HTTP 401: expired session"));
+        assert!(!is_auth_or_empty_pool_error("rate limit exceeded 429"));
+        assert!(!is_auth_or_empty_pool_error("upstream timed out"));
     }
 }

@@ -51,7 +51,7 @@ pub async fn backfill_missing_emails(st: &Arc<AppState>) {
         }
     }
     if updated {
-        st.persist_accounts().await;
+        let _ = st.persist_accounts().await;
     }
 }
 
@@ -100,7 +100,7 @@ pub async fn add(
 
     let name = st.pool.add(spec);
     st.forget_session(&name).await;
-    st.persist_accounts().await;
+    st.persist_accounts().await.map_err(AppError::Internal)?;
     Ok(Json(json!({ "ok": true, "name": name })))
 }
 
@@ -112,7 +112,7 @@ pub async fn remove(
     authorize_admin(&st.cfg, &headers)?;
     let removed = st.pool.remove(&name);
     st.forget_session(&name).await;
-    st.persist_accounts().await;
+    st.persist_accounts().await.map_err(AppError::Internal)?;
     Ok(Json(json!({ "ok": removed, "name": name })))
 }
 
@@ -126,7 +126,7 @@ pub async fn set_primary(
     if !updated {
         return Err(AppError::BadRequest(format!("account '{name}' not found")));
     }
-    st.persist_accounts().await;
+    st.persist_accounts().await.map_err(AppError::Internal)?;
     Ok(Json(json!({ "ok": true, "primary": name, "accounts": st.pool.info() })))
 }
 
@@ -153,7 +153,7 @@ pub async fn test_account(
         .await
         {
             if st.pool.set_email(&acc.name, &resolved) {
-                st.persist_accounts().await;
+                let _ = st.persist_accounts().await;
             }
         }
     }

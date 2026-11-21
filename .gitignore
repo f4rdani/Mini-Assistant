@@ -17,6 +17,7 @@ target/
 /dist/
 /_old/
 accounts.json
+accounts.json.bak
 *.db
 *.db-wal
 *.db-shm

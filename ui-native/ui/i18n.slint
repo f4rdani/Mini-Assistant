@@ -1,0 +1,11 @@
+// Reactive application-wide localization (ID / EN).
+// Each Slint Window owns its own global instance; Rust keeps MainPanel,
+// HudWindow, and BubbleWindow synchronized via `apply_app_language`.
+export global I18n {
+    in-out property <string> lang: "id"; // "id" | "en"
+    out property <bool> en: root.lang == "en";
+
+    public pure function t(id-text: string, en-text: string) -> string {
+        root.en ? en-text : id-text
+    }
+}

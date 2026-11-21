@@ -1,4 +1,5 @@
 import { Tokens, Icons } from "theme.slint";
+import { I18n } from "i18n.slint";
 import { Icon, AemeathAvatar } from "components.slint";
 
 // ===========================================================================
@@ -35,9 +36,11 @@ export component BubbleWindow inherits Window {
     // Typography for the message text (Control Panel > Pengaturan).
     in property <string> text-font-family: "Segoe UI";
     in property <float> text-font-px: 13;
-    in property <string> loading-label: "Menerjemahkan layar...";
+    in property <string> loading-label: I18n.t("Menerjemahkan layar...", "Translating screen...");
     out property <length> trans-scroll-y: -trans-vp.content-y;
-    out property <length> trans-scroll-max: max(0px, trans-vp.content-height - trans-vp.height);
+    out property <length> trans-scroll-max: max(0px, root.trans-content-h - trans-vp.height);
+    out property <length> trans-viewport-h: trans-vp.height;
+    out property <length> trans-content-h: max(trans-vp.content-height, trans-flow.preferred-height);
 
     public function scroll-to-bottom() {
         trans-vp.content-y = min(0px, trans-vp.height - max(trans-vp.content-height, trans-flow.preferred-height));
@@ -45,6 +48,10 @@ export component BubbleWindow inherits Window {
 
     public function scroll-to-top() {
         trans-vp.content-y = 0px;
+    }
+
+    public function set-trans-scroll-y(y: length) {
+        trans-vp.content-y = -max(0px, min(y, max(0px, max(trans-vp.content-height, trans-flow.preferred-height) - trans-vp.height)));
     }
 
     callback expand-requested;

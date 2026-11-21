@@ -1,4 +1,5 @@
 import { Tokens, Icons } from "theme.slint";
+import { I18n } from "i18n.slint";
 import {
     Icon, GlassCard, PrimaryButton, HoloButton, IconButton, OrbitalSwitch,
     Equalizer, StatusPill, BadgeTag, AemeathAvatar, SectionTitle
@@ -275,7 +276,7 @@ component VaultItem inherits Rectangle {
         Text {
             x: 28px; y: 0;
             width: 76px; height: 28px;
-            text: "Buka Link";
+            text: I18n.t("Buka Link", "Open Link");
             color: Tokens.halo-cyan;
             font-family: Tokens.font-mono-bold;
             font-size: Tokens.panel-font-min;
@@ -308,7 +309,9 @@ component VaultItem inherits Rectangle {
             x: 31px; y: 0;
             width: parent.width - 42px; height: 34px;
             text: root.accounts-info != "" ? root.accounts-info
-                : root.input-enabled ? "Belum ada sesi cookie/token terhubung" : "Belum didukung";
+                : root.input-enabled
+                    ? I18n.t("Belum ada sesi cookie/token terhubung", "No cookie/token session connected yet")
+                    : I18n.t("Belum didukung", "Not supported yet");
             color: root.accounts-info != "" ? Tokens.sync-emerald : Tokens.text-muted;
             font-family: Tokens.font-mono-bold;
             font-size: Tokens.panel-font-min;
@@ -344,7 +347,7 @@ component VaultItem inherits Rectangle {
         // Masked account email
         Text {
             x: 92px; y: 0;
-            width: parent.width - 92px - (k.is-primary ? 156px : 264px);
+            width: parent.width - 92px - (k.is-primary ? 174px : 292px);
             height: 40px;
             text: k.email;
             color: k.tone == "red" ? #FCA5A5
@@ -357,11 +360,11 @@ component VaultItem inherits Rectangle {
             overflow: elide;
         }
 
-        // Pool state badge ("Utama · Siap" | "Cadangan · Siap" | "Limit (...)")
+        // Pool state badge ("Utama · Siap" | "Primary · Ready" | "Limit (...)")
         Rectangle {
-            x: k.is-primary ? (parent.width - 148px) : (parent.width - 258px);
+            x: k.is-primary ? (parent.width - 166px) : (parent.width - 284px);
             y: 7px;
-            width: k.is-primary ? 108px : 118px;
+            width: k.is-primary ? 126px : 136px;
             height: 26px;
             background: k.tone == "red" ? #EF444424
                 : k.tone == "amber" ? #FFD16620
@@ -375,7 +378,8 @@ component VaultItem inherits Rectangle {
             border-radius: 13px;
 
             Text {
-                width: parent.width; height: parent.height;
+                x: 6px; y: 0;
+                width: parent.width - 12px; height: parent.height;
                 text: k.status-text;
                 color: k.tone == "red" ? #FCA5A5
                     : k.tone == "amber" ? Tokens.polestar-gold
@@ -390,10 +394,10 @@ component VaultItem inherits Rectangle {
             }
         }
 
-        // Promote to Key 1 ("Set Utama", shown for Key 2, Key 3, ...)
+        // Promote to Key 1 ("Set Utama" / "Set Primary", shown for Key 2, Key 3, ...)
         if !k.is-primary : Rectangle {
-            x: parent.width - 134px; y: 7px;
-            width: 94px; height: 26px;
+            x: parent.width - 142px; y: 7px;
+            width: 102px; height: 26px;
             background: prom-touch.has-hover ? #3CE8FF2E : #1E2434;
             border-width: 1px;
             border-color: prom-touch.has-hover ? Tokens.halo-cyan : #3CE8FF59;
@@ -415,7 +419,7 @@ component VaultItem inherits Rectangle {
                 }
                 Text {
                     height: parent.height;
-                    text: "Set Utama";
+                    text: I18n.t("Set Utama", "Set Primary");
                     color: Tokens.halo-cyan;
                     font-family: Tokens.font-sans-semibold;
                     font-size: Tokens.panel-font-min;
@@ -545,7 +549,7 @@ component VaultItem inherits Rectangle {
         chamfer-fill: #131925;
         icon: "bolt";
         icon-size: 13px;
-        label: "Ambil Otomatis";
+        label: I18n.t("Ambil Otomatis", "Auto Fetch");
         enabled: root.input-enabled;
         clicked => { root.fetch-requested(); }
     }
@@ -554,7 +558,7 @@ component VaultItem inherits Rectangle {
         width: 176px; height: 36px;
         icon: "check";
         icon-size: 13px;
-        label: "Simpan Manual";
+        label: I18n.t("Simpan Manual", "Save Manual");
         enabled: root.input-enabled && root.token-value != "";
         clicked => { root.save-token(root.token-value); }
     }
@@ -781,7 +785,7 @@ component DiagKeyRow inherits Rectangle {
         Text {
             x: 31px; y: 0;
             width: 34px; height: 32px;
-            text: "Uji";
+            text: I18n.t("Uji", "Test");
             color: Tokens.halo-cyan;
             font-family: Tokens.font-sans-semibold;
             font-size: Tokens.panel-font-min;
@@ -872,12 +876,14 @@ export component MainPanel inherits Window {
     callback trans-hotkey-apply;
     callback trans-hotkey-reset;
     callback translate-lang-selected(lang: string);
+    callback app-lang-selected(lang: string);
     // Empty prompt = reset to the built-in default.
     callback translate-prompt-saved(prompt: string);
     callback font-size-picked(px: int);
     callback font-family-picked(name: string);
     callback sing-volume-picked(pct: int);
     callback sing-test-toggled;
+    callback bubble-read-speed-selected(speed: string);
     callback request-hud;
     callback request-bubble;
     callback minimize-requested;
@@ -914,6 +920,9 @@ export component MainPanel inherits Window {
     in property <bool> sing-previewing: false;
     in property <int> sing-track-count: 1;
     in property <int> sing-ram-pct: 0;
+    in property <bool> set-bubble-auto-scroll: true;
+    in property <string> bubble-read-speed: "normal";
+    in property <bool> set-auto-sync-cookies: true;
     in-out property <string> translate-prompt: "";
     in property <int> font-size-px: 14;
     in property <string> font-family-sel: "Segoe UI";
@@ -931,7 +940,7 @@ export component MainPanel inherits Window {
     in property <[string]> translate-langs: ["Indonesia", "English", "Jepang", "Mandarin", "Korea", "Arab", "Spanyol", "Prancis", "Jerman"];
     in-out property <int> hk-menu: 0;   // 0 closed, 1 mod, 2 key, 3 trans-mod, 4 trans-key, 5 trans-lang
 
-    in property <string> diag-status: "Menunggu pengujian...";
+    in property <string> diag-status: I18n.t("Menunggu pengujian...", "Waiting for test...");
     in property <bool> diag-busy: false;
     in property <bool> diag-ok: false;
     in property <string> diag-latency: "-";
@@ -1085,6 +1094,57 @@ export component MainPanel inherits Window {
     }
 
     // --- right group (.topbar-right-group) ---
+    topbar-lang-pill := Rectangle {
+        x: topbar-hk-pill.x - 88px; y: 10px;
+        width: 78px;
+        height: 32px;
+        background: #0E1422CC;
+        border-width: 1px;
+        border-color: #3CE8FF4D;
+        border-radius: 6px;
+
+        Rectangle {
+            x: 3px; y: 3px;
+            width: 35px; height: 26px;
+            border-radius: 4px;
+            background: !I18n.en ? Tokens.grad-aemeath : (id-ta.has-hover ? #FFFFFF14 : transparent);
+            id-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.app-lang-selected("id"); }
+            }
+            Text {
+                width: parent.width; height: parent.height;
+                text: "ID";
+                color: !I18n.en ? #070A12 : Tokens.text-muted;
+                font-family: Tokens.font-mono-bold;
+                font-size: 12px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            x: 40px; y: 3px;
+            width: 35px; height: 26px;
+            border-radius: 4px;
+            background: I18n.en ? Tokens.grad-aemeath : (en-ta.has-hover ? #FFFFFF14 : transparent);
+            en-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.app-lang-selected("en"); }
+            }
+            Text {
+                width: parent.width; height: parent.height;
+                text: "EN";
+                color: I18n.en ? #070A12 : Tokens.text-muted;
+                font-family: Tokens.font-mono-bold;
+                font-size: 12px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
     topbar-hk-pill := Rectangle {
         x: parent.width - 104px - self.width; y: 10px;
         width: hk-row.preferred-width + 20px;
@@ -1238,7 +1298,11 @@ export component MainPanel inherits Window {
             x: 40px;
             y: 0;
             height: parent.height;
-            text: tab == 0 ? "Providers" : tab == 1 ? "Browser & Cookies" : tab == 2 ? "Riwayat Sesi" : tab == 3 ? "Diagnostik" : "Pengaturan";
+            text: tab == 0 ? "Providers"
+                : tab == 1 ? "Browser & Cookies"
+                : tab == 2 ? I18n.t("Riwayat Sesi", "Session History")
+                : tab == 3 ? I18n.t("Diagnostik", "Diagnostics")
+                : I18n.t("Pengaturan", "Settings");
             color: root.active-tab == tab ? Tokens.aemeath-soft
                 : touch.has-hover ? Tokens.halo-cyan : Tokens.text-muted;
             font-family: root.active-tab == tab ? Tokens.font-display : Tokens.font-display-ui;
@@ -1368,7 +1432,7 @@ export component MainPanel inherits Window {
                 }
                 Text {
                     height: parent.height;
-                    text: "buka HUD\"";
+                    text: I18n.t("buka HUD\"", "open HUD\"");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -1422,7 +1486,7 @@ export component MainPanel inherits Window {
             chamfer-fill: #0E1422;
             icon: "spark";
             icon-size: 14px;
-            label: "BUKA FLOATING HUD";
+            label: I18n.t("BUKA FLOATING HUD", "OPEN FLOATING HUD");
             clicked => { root.request-hud(); }
         }
     }
@@ -1445,7 +1509,7 @@ export component MainPanel inherits Window {
             : root.active-tab == 1 ? 1146px
             : root.active-tab == 2 ? 244px + Math.ceil(root.topics.length / 2) * 138px
             : root.active-tab == 3 ? (1236px + root.diag-keys-h)
-            : 2594px);
+            : 3220px);
 
         // The ScrollView viewport paints over page-level elements, so repeat
         // the right-hand slice of the page radial glow inside the viewport.
@@ -1467,7 +1531,10 @@ export component MainPanel inherits Window {
                 x: 0; y: 0;
                 width: parent.width;
                 title: "AI PROVIDERS";
-                subtitle: "Urutan fallback dan status koneksi. Koneksi diatur di tab Browser & Cookies, tes detail di Diagnostik.";
+                subtitle: I18n.t(
+                    "Urutan fallback dan status koneksi. Koneksi diatur di tab Browser & Cookies, tes detail di Diagnostik.",
+                    "Fallback order and connection status. Set up sessions in Browser & Cookies, run detailed tests in Diagnostics."
+                );
             }
 
             GlassCard {
@@ -1480,7 +1547,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 18px;
                     width: parent.width - 260px;
-                    text: "Urutan Fallback & Status";
+                    text: I18n.t("Urutan Fallback & Status", "Fallback Order & Status");
                     color: Tokens.halo-cyan;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -1491,7 +1558,10 @@ export component MainPanel inherits Window {
                     x: 20px; y: 52px;
                     width: parent.width - 40px;
                     height: 44px;
-                    text: "Baris teratas adalah provider utama. Status diperbarui dari hasil koneksi terakhir.";
+                    text: I18n.t(
+                        "Baris teratas adalah provider utama. Status diperbarui dari hasil koneksi terakhir.",
+                        "The top row is your primary provider. Status updates from the latest connection result."
+                    );
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -1510,7 +1580,7 @@ export component MainPanel inherits Window {
                 // subhead (.priority-subhead)
                 Text {
                     x: 20px; y: 112px;
-                    text: "Model Aktif (Urutan Fallback)";
+                    text: I18n.t("Model Aktif (Urutan Fallback)", "Active Models (Fallback Order)");
                     color: Tokens.text-main;
                     font-family: Tokens.font-sans-bold;
                     font-size: Tokens.panel-font-md;
@@ -1519,7 +1589,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 113px;
                     width: parent.width - 40px;
-                    text: "Panah untuk atur prioritas, toggle untuk nonaktif";
+                    text: I18n.t("Panah untuk atur prioritas, toggle untuk nonaktif", "Arrows reorder priority, toggle disables");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -1599,7 +1669,7 @@ export component MainPanel inherits Window {
 
                         Text {
                             height: 26px;
-                            text: idx == 0 ? "Utama" : "Cadangan #" + idx;
+                            text: idx == 0 ? I18n.t("Utama", "Primary") : I18n.t("Cadangan #", "Backup #") + idx;
                             color: idx == 0 ? Tokens.halo-cyan : Tokens.text-muted;
                             font-family: idx == 0 ? Tokens.font-sans-bold : Tokens.font-sans;
                             font-size: Tokens.panel-font-min;
@@ -1678,7 +1748,7 @@ export component MainPanel inherits Window {
                     chamfer-fill: #101627;
                     icon: "check";
                     icon-size: 15px;
-                    label: "SIMPAN URUTAN PROVIDER";
+                    label: I18n.t("SIMPAN URUTAN PROVIDER", "SAVE PROVIDER ORDER");
                     clicked => { root.settings-saved(); }
                 }
             }
@@ -1694,7 +1764,10 @@ export component MainPanel inherits Window {
                 x: 0; y: 0;
                 width: parent.width;
                 title: "BROWSER & COOKIES";
-                subtitle: "Pilih browser Chrome atau Edge untuk ekstrak sesi. Key cadangan otomatis dipakai saat limit atau error.";
+                subtitle: I18n.t(
+                    "Pilih browser Chrome atau Edge untuk ekstrak sesi. Key cadangan otomatis dipakai saat limit atau error.",
+                    "Pick Chrome or Edge to extract a session. Backup keys automatically take over on rate limit or error."
+                );
             }
 
             browser-profile-card := GlassCard {
@@ -1708,7 +1781,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Pilih Profil Browser";
+                    text: I18n.t("Pilih Profil Browser", "Select Browser Profile");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -1784,9 +1857,9 @@ export component MainPanel inherits Window {
                         Text {
                             x: b.selected ? 25px : 0px;
                             y: 0;
-                            width: b.selected ? 40px : parent.width;
+                            width: b.selected ? 44px : parent.width;
                             height: 26px;
-                            text: b.selected ? "Aktif" : "Pilih";
+                            text: b.selected ? I18n.t("Aktif", "Active") : I18n.t("Pilih", "Select");
                             color: b.selected ? Tokens.aemeath-soft : Tokens.text-muted;
                             font-family: Tokens.font-sans-bold;
                             font-size: Tokens.panel-font-min;
@@ -1809,7 +1882,7 @@ export component MainPanel inherits Window {
                     }
                     Text {
                         x: 30px; y: 102px;
-                        text: "SQLite lokal siap";
+                        text: I18n.t("SQLite lokal siap", "Local SQLite ready");
                         color: Tokens.sync-emerald;
                         font-family: Tokens.font-sans-semibold;
                         font-size: Tokens.panel-font-min;
@@ -1820,7 +1893,10 @@ export component MainPanel inherits Window {
                 if root.browsers.length == 0 : Text {
                     x: 20px; y: 68px;
                     width: parent.width - 40px;
-                    text: "Tidak ada profil browser terdeteksi. Pasang Google Chrome atau Microsoft Edge untuk mengambil sesi.";
+                    text: I18n.t(
+                        "Tidak ada profil browser terdeteksi. Pasang Google Chrome atau Microsoft Edge untuk mengambil sesi.",
+                        "No browser profiles detected. Install Google Chrome or Microsoft Edge to extract a session."
+                    );
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -1855,7 +1931,10 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 54px;
                     width: parent.width - 40px;
-                    text: "Token tersensor otomatis. Key 1 dipakai utama; Key 2 (Chrome/Edge) menjadi fallback otomatis saat limit/error.";
+                    text: I18n.t(
+                        "Token tersensor otomatis. Key 1 dipakai utama; Key 2 (Chrome/Edge) menjadi fallback otomatis saat limit/error.",
+                        "Tokens are masked automatically. Key 1 is primary; Key 2 (Chrome/Edge) takes over on rate limit/error."
+                    );
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -1880,9 +1959,9 @@ export component MainPanel inherits Window {
                     icon: "bolt";
                     icon-size: 15px;
                     font-size: Tokens.panel-font-md;
-                    label: root.vault-busy ? "Mengambil sesi dari browser..."
-                        : root.browsers.length > 0 ? "Ambil Sesi dari " + root.active-browser
-                        : "Tidak ada browser terdeteksi";
+                    label: root.vault-busy ? I18n.t("Mengambil sesi dari browser...", "Fetching browser session...")
+                        : root.browsers.length > 0 ? I18n.t("Ambil Sesi dari ", "Fetch Session from ") + root.active-browser
+                        : I18n.t("Tidak ada browser terdeteksi", "No browser detected");
                     enabled: !root.vault-busy && root.browsers.length > 0;
                     clicked => { root.vault-fetch(); }
                 }
@@ -1895,7 +1974,7 @@ export component MainPanel inherits Window {
                     height: 46px;
                     icon: "layers";
                     icon-size: 15px;
-                    label: root.vault-busy ? "Memproses..." : "Ambil Semua (" + root.browsers.length + " Browser)";
+                    label: root.vault-busy ? I18n.t("Memproses...", "Processing...") : I18n.t("Ambil Semua (", "Fetch All (") + root.browsers.length + I18n.t(" Browser)", " Browsers)");
                     enabled: !root.vault-busy;
                     clicked => { root.vault-fetch-all(); }
                 }
@@ -1922,8 +2001,10 @@ export component MainPanel inherits Window {
                     }
                     Text {
                         x: 16px; y: 27px;
-                        width: parent.width - 88px; height: 22px;
-                        text: root.vault-status == "" ? "Siap: ambil otomatis dari Chrome/Edge, atau tempel token manual di bawah." : root.vault-status;
+                        width: parent.width - 94px; height: 22px;
+                        text: root.vault-status == ""
+                            ? I18n.t("Siap: ambil otomatis dari Chrome/Edge, atau tempel token manual di bawah.", "Ready: auto-fetch from Chrome/Edge, or paste a token below.")
+                            : root.vault-status;
                         color: root.vault-ok ? Tokens.sync-emerald
                             : root.vault-status == "" ? Tokens.text-muted : #FCA5A5;
                         font-family: Tokens.font-mono;
@@ -1932,9 +2013,9 @@ export component MainPanel inherits Window {
                         overflow: elide;
                     }
                     Text {
-                        x: parent.width - 66px; y: 27px;
-                        width: 50px; height: 22px;
-                        text: root.vault-ok ? "SIAP" : (root.vault-busy ? "…" : "—");
+                        x: parent.width - 74px; y: 27px;
+                        width: 58px; height: 22px;
+                        text: root.vault-ok ? I18n.t("SIAP", "READY") : (root.vault-busy ? "…" : "—");
                         color: Tokens.halo-cyan;
                         font-family: Tokens.font-mono-bold;
                         font-size: Tokens.panel-font-min;
@@ -1952,11 +2033,14 @@ export component MainPanel inherits Window {
                     keys: root.deepseek-keys;
                     provider-name: "DeepSeek";
                     token-kind: "userToken";
-                    placeholder: "Tempel userToken (eyJhbGci...)";
+                    placeholder: I18n.t("Tempel userToken (eyJhbGci...)", "Paste userToken (eyJhbGci...)");
                     link-text: "chat.deepseek.com";
                     link-width: 124px;
                     hint-suffix: " · F12 > Application > Local Storage > userToken";
-                    hint-line2: "Ambil otomatis dari Chrome/Edge atau simpan manual token di atas.";
+                    hint-line2: I18n.t(
+                        "Ambil otomatis dari Chrome/Edge atau simpan manual token di atas.",
+                        "Auto-fetch from Chrome/Edge or save a manual token above."
+                    );
                     status: root.deepseek-connect-count + " Connect";
                     connected: root.deepseek-connect-count > 0;
                     accounts-info: root.deepseek-accounts-text;
@@ -1979,8 +2063,8 @@ export component MainPanel inherits Window {
             SectionTitle {
                 x: 0; y: 0;
                 width: parent.width - 170px;
-                title: "RIWAYAT SESI";
-                subtitle: "Tersimpan lokal di perangkat Anda. Klik kartu untuk membuka.";
+                title: I18n.t("RIWAYAT SESI", "SESSION HISTORY");
+                subtitle: I18n.t("Tersimpan lokal di perangkat Anda. Klik kartu untuk membuka.", "Stored locally on your device. Click a card to open.");
             }
 
             // New session
@@ -1990,7 +2074,7 @@ export component MainPanel inherits Window {
                 chamfer-fill: Tokens.bg-void;
                 icon: "sparkles";
                 icon-size: 14px;
-                label: "Sesi Baru";
+                label: I18n.t("Sesi Baru", "New Session");
                 clicked => { root.topic-new(); }
             }
 
@@ -2019,7 +2103,7 @@ export component MainPanel inherits Window {
                     if root.topic-query == "" : Text {
                         x: 38px; y: 0;
                         width: parent.width - 50px; height: 40px;
-                        text: "Cari sesi atau kategori...";
+                        text: I18n.t("Cari sesi atau kategori...", "Search sessions or category...");
                         color: Tokens.text-dim;
                         font-family: Tokens.font-sans;
                         font-size: Tokens.panel-font-min;
@@ -2081,7 +2165,10 @@ export component MainPanel inherits Window {
             if root.topics.length == 0 : Text {
                 x: 20px; y: 234px;
                 width: parent.width - 40px;
-                text: "Belum ada sesi. Mulai percakapan baru untuk menyimpannya di sini.";
+                text: I18n.t(
+                    "Belum ada sesi. Mulai percakapan baru untuk menyimpannya di sini.",
+                    "No sessions yet. Start a new conversation to save it here."
+                );
                 color: Tokens.text-muted;
                 font-family: Tokens.font-sans;
                 font-size: Tokens.panel-font-min;
@@ -2225,8 +2312,8 @@ export component MainPanel inherits Window {
             SectionTitle {
                 x: 0; y: 0;
                 width: parent.width;
-                title: "DIAGNOSTIK SISTEM";
-                subtitle: "Metrik performa dan tes koneksi WebAI + ekstraksi cookie.";
+                title: I18n.t("DIAGNOSTIK SISTEM", "SYSTEM DIAGNOSTICS");
+                subtitle: I18n.t("Metrik performa dan tes koneksi WebAI + ekstraksi cookie.", "Performance metrics, WebAI connection tests & cookie extraction.");
             }
 
             // ---- .metrics-grid ----
@@ -2244,10 +2331,10 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 18px; y: 16px;
-                    text: k == 0 ? "Penggunaan RAM"
-                        : k == 1 ? "Penggunaan CPU"
-                        : k == 2 ? "Latensi API"
-                        : "Penyimpanan";
+                    text: k == 0 ? I18n.t("Penggunaan RAM", "RAM Usage")
+                        : k == 1 ? I18n.t("Penggunaan CPU", "CPU Usage")
+                        : k == 2 ? I18n.t("Latensi API", "API Latency")
+                        : I18n.t("Penyimpanan", "Storage");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -2279,7 +2366,7 @@ export component MainPanel inherits Window {
                     text: k == 0 ? "Working Set Win32"
                         : k == 1 ? "Process Times Win32"
                         : k == 2 ? "Round-trip WebAI"
-                        : "Offline Lokal";
+                        : I18n.t("Offline Lokal", "Local Offline");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -2301,7 +2388,7 @@ export component MainPanel inherits Window {
                     Text {
                         x: 32px; y: 0;
                         height: parent.height;
-                        text: "Uji Latensi";
+                        text: I18n.t("Uji Latensi", "Test Latency");
                         color: Tokens.halo-cyan;
                         font-family: Tokens.font-sans;
                         font-size: Tokens.panel-font-min;
@@ -2332,7 +2419,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Tes Koneksi";
+                    text: I18n.t("Tes Koneksi", "Connection Test");
                     color: Tokens.halo-cyan;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -2340,12 +2427,15 @@ export component MainPanel inherits Window {
                 }
                 MonoBadge {
                     x: parent.width - 20px - self.width; y: 16px;
-                    label: root.browsers.length > 0 ? root.active-browser : "TIDAK ADA BROWSER";
+                    label: root.browsers.length > 0 ? root.active-browser : I18n.t("TIDAK ADA BROWSER", "NO BROWSER");
                 }
                 Text {
                     x: 20px; y: 54px;
                     width: parent.width - 40px;
-                    text: "Uji endpoint WebAI, setiap key DeepSeek, dan ekstraksi cookie dari browser aktif. Hasilnya tampil di terminal diagnostik di bawah ini.";
+                    text: I18n.t(
+                        "Uji endpoint WebAI, setiap key DeepSeek, dan ekstraksi cookie dari browser aktif. Hasilnya tampil di terminal diagnostik di bawah ini.",
+                        "Test WebAI endpoints, each DeepSeek key, and cookie extraction from your active browser. Results appear in the terminal below."
+                    );
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -2358,7 +2448,7 @@ export component MainPanel inherits Window {
                     chamfer-fill: #101627;
                     icon: "bolt";
                     icon-size: 14px;
-                    label: root.diag-busy ? "MENGUJI..." : "UJI SEMUA WEBAI";
+                    label: root.diag-busy ? I18n.t("MENGUJI...", "TESTING...") : I18n.t("UJI SEMUA WEBAI", "TEST ALL WEBAI");
                     enabled: !root.diag-busy;
                     clicked => { root.diag-test-all(); }
                 }
@@ -2367,7 +2457,7 @@ export component MainPanel inherits Window {
                     width: 206px; height: 38px;
                     icon: "layers";
                     icon-size: 14px;
-                    label: "Uji Ekstraksi Cookie";
+                    label: I18n.t("Uji Ekstraksi Cookie", "Test Cookie Extract");
                     enabled: !root.diag-busy;
                     clicked => { root.diag-extract(); }
                 }
@@ -2376,7 +2466,7 @@ export component MainPanel inherits Window {
                     width: 196px; height: 38px;
                     icon: "key";
                     icon-size: 14px;
-                    label: "Uji Semua Key (" + root.deepseek-keys.length + ")";
+                    label: I18n.t("Uji Semua Key (", "Test All Keys (") + root.deepseek-keys.length + ")";
                     enabled: !root.diag-busy;
                     clicked => { root.diag-test-all-keys(); }
                 }
@@ -2466,7 +2556,7 @@ export component MainPanel inherits Window {
                             Text {
                                 x: 32px; y: 0;
                                 width: 34px; height: 32px;
-                                text: "Uji";
+                                text: I18n.t("Uji", "Test");
                                 color: Tokens.halo-cyan;
                                 font-family: Tokens.font-sans-semibold;
                                 font-size: Tokens.panel-font-min;
@@ -2491,7 +2581,7 @@ export component MainPanel inherits Window {
                     Text {
                         x: 0; y: 0;
                         height: 24px;
-                        text: "Uji Per-Key DeepSeek (" + root.deepseek-keys.length + " key)";
+                        text: I18n.t("Uji Per-Key DeepSeek (", "Per-Key DeepSeek Probe (") + root.deepseek-keys.length + I18n.t(" key)", root.deepseek-keys.length == 1 ? " key)" : " keys)");
                         color: Tokens.text-main;
                         font-family: Tokens.font-display-ui;
                         font-size: Tokens.panel-font-min;
@@ -2502,7 +2592,7 @@ export component MainPanel inherits Window {
                         x: 260px; y: 0;
                         width: parent.width - 260px;
                         height: 24px;
-                        text: "Uji tiap akun tanpa fallback silang";
+                        text: I18n.t("Uji tiap akun tanpa fallback silang", "Probe each account without cross-fallback");
                         color: Tokens.text-muted;
                         font-family: Tokens.font-sans;
                         font-size: Tokens.panel-font-min;
@@ -2561,7 +2651,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Daftar Pintasan";
+                    text: I18n.t("Daftar Pintasan", "Keyboard Shortcuts");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -2574,8 +2664,8 @@ export component MainPanel inherits Window {
                     key1: root.hk-active-mod;
                     key2: root.hk-active-key;
                     detail-x: 170px;
-                    title: "Toggle HUD (Global Hotkey)";
-                    hint: "Buka/tutup HUD di atas game secara instan.";
+                    title: I18n.t("Toggle HUD (Global Hotkey)", "Toggle HUD (Global Hotkey)");
+                    hint: I18n.t("Buka/tutup HUD di atas game secara instan.", "Instantly show/hide the HUD overlay above games.");
                 }
                 ShortcutRow {
                     x: 20px; y: 126px;
@@ -2583,24 +2673,24 @@ export component MainPanel inherits Window {
                     key1: root.trans-hk-active-mod;
                     key2: root.trans-hk-active-key;
                     detail-x: 170px;
-                    title: "Terjemahkan Layar (Bubble Maskot)";
-                    hint: "Jepret layar & tampilkan terjemahan (" + root.translate-lang + ") di samping GIF Aemeath.";
+                    title: I18n.t("Terjemahkan Layar (Bubble Maskot)", "Translate Screen (Mascot Bubble)");
+                    hint: I18n.t("Jepret layar & tampilkan terjemahan (", "Capture screen & show translation (") + root.translate-lang + I18n.t(") di samping GIF Aemeath.", ") beside the Aemeath sprite.");
                 }
                 ShortcutRow {
                     x: 20px; y: 198px;
                     width: parent.width - 40px;
                     key1: "Esc";
                     detail-x: 170px;
-                    title: "Minimize ke Bubble";
-                    hint: "Kecilkan HUD ke bubble mengambang.";
+                    title: I18n.t("Minimize ke Bubble", "Minimize to Bubble");
+                    hint: I18n.t("Kecilkan HUD ke bubble mengambang.", "Collapse HUD into the floating mascot bubble.");
                 }
                 ShortcutRow {
                     x: 20px; y: 270px;
                     width: parent.width - 40px;
                     key1: "Enter";
                     detail-x: 170px;
-                    title: "Kirim Pesan & Analisis";
-                    hint: "Kirim prompt beserta tangkapan layar desktop.";
+                    title: I18n.t("Kirim Pesan & Analisis", "Send Message & Analyze");
+                    hint: I18n.t("Kirim prompt beserta tangkapan layar desktop.", "Send prompt along with optional desktop screenshot.");
                 }
                 ShortcutRow {
                     x: 20px; y: 342px;
@@ -2608,8 +2698,8 @@ export component MainPanel inherits Window {
                     key1: "Shift";
                     key2: "Enter";
                     detail-x: 170px;
-                    title: "Baris Baru (Multiline)";
-                    hint: "Buat baris baru tanpa mengirim pesan.";
+                    title: I18n.t("Baris Baru (Multiline)", "New Line (Multiline)");
+                    hint: I18n.t("Buat baris baru tanpa mengirim pesan.", "Insert a newline without submitting.");
                 }
             }
         }
@@ -2618,13 +2708,16 @@ export component MainPanel inherits Window {
         if root.active-tab == 4 : Rectangle {
             x: 28px; y: 24px;
             width: parent.width - 56px;
-            height: 2594px;
+            height: 3220px;
 
             SectionTitle {
                 x: 0; y: 0;
                 width: parent.width;
-                title: "PENGATURAN";
-                subtitle: "Pintasan global, terjemahan layar cepat, preferensi HUD, dan database.";
+                title: I18n.t("PENGATURAN", "SETTINGS");
+                subtitle: I18n.t(
+                    "Pintasan global, terjemahan layar cepat, preferensi HUD, bahasa, dan database.",
+                    "Global hotkeys, screen translate, HUD preferences, app language, and database."
+                );
             }
 
             // Card 1: Global Summon Hotkey
@@ -2638,7 +2731,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Pintasan Global (Hotkey HUD)";
+                    text: I18n.t("Pintasan Global (Hotkey HUD)", "Global Shortcut (HUD Hotkey)");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -2647,7 +2740,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 50px;
                     width: parent.width - 40px;
-                    text: "Bekerja di latar belakang bahkan saat game fullscreen aktif.";
+                    text: I18n.t("Bekerja di latar belakang bahkan saat game fullscreen aktif.", "Works in the background even when fullscreen games are active.");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -2729,7 +2822,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 174px;
-                    text: "Pintasan Aktif";
+                    text: I18n.t("Pintasan Aktif", "Active Shortcut");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-md;
@@ -2775,7 +2868,7 @@ export component MainPanel inherits Window {
                     chamfer-fill: #101627;
                     icon: "check";
                     icon-size: 15px;
-                    label: "SIMPAN PINTASAN";
+                    label: I18n.t("SIMPAN PINTASAN", "SAVE SHORTCUT");
                     clicked => { root.hotkey-apply(); }
                 }
                 HoloButton {
@@ -2799,7 +2892,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Pintasan Translate Layar & Bahasa";
+                    text: I18n.t("Pintasan Translate Layar & Bahasa", "Screen Translate Shortcut & Language");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -2808,7 +2901,10 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 50px;
                     width: parent.width - 40px;
-                    text: "Otomatis jepret layar & tampilkan terjemahan langsung di bubble Aemeath.";
+                    text: I18n.t(
+                        "Otomatis jepret layar & tampilkan terjemahan langsung di bubble Aemeath.",
+                        "Automatically capture screen & show translation in the Aemeath bubble."
+                    );
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -2890,7 +2986,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px + (col-w + 14px) * 2; y: 92px;
-                    text: "Bahasa Target";
+                    text: I18n.t("Bahasa Target", "Target Language");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-md;
@@ -2928,7 +3024,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 174px;
-                    text: "Pintasan & Bahasa Translate Aktif";
+                    text: I18n.t("Pintasan & Bahasa Translate Aktif", "Active Translate Shortcut & Language");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-md;
@@ -2991,7 +3087,7 @@ export component MainPanel inherits Window {
                     chamfer-fill: #101627;
                     icon: "check";
                     icon-size: 15px;
-                    label: "SIMPAN TRANSLATE";
+                    label: I18n.t("SIMPAN TRANSLATE", "SAVE TRANSLATE");
                     clicked => { root.trans-hotkey-apply(); }
                 }
                 HoloButton {
@@ -3014,7 +3110,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Preferensi HUD & Tangkapan Layar";
+                    text: I18n.t("Preferensi HUD & Tangkapan Layar", "HUD & Screen Capture Preferences");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -3027,7 +3123,7 @@ export component MainPanel inherits Window {
                     row-h: 72px;
                     checked: root.set-pin;
                     setting-name: "Always on Top (Pin)";
-                    hint1: "Jendela HUD selalu berada di lapisan paling atas.";
+                    hint1: I18n.t("Jendela HUD selalu berada di lapisan paling atas.", "Keep the HUD window always on top of other windows.");
                     toggled(v) => { root.setting-toggled("pin", v); }
                 }
                 SettingToggleRow {
@@ -3035,8 +3131,8 @@ export component MainPanel inherits Window {
                     width: parent.width - 40px;
                     row-h: 72px;
                     checked: root.set-auto-capture;
-                    setting-name: "Auto-Capture Layar";
-                    hint1: "Ambil tangkapan layar otomatis saat mengirim pesan.";
+                    setting-name: I18n.t("Auto-Capture Layar", "Auto-Capture Screen");
+                    hint1: I18n.t("Ambil tangkapan layar otomatis saat mengirim pesan.", "Automatically capture a screenshot when sending a message.");
                     toggled(v) => { root.setting-toggled("auto-capture", v); }
                 }
                 SettingToggleRow {
@@ -3044,10 +3140,10 @@ export component MainPanel inherits Window {
                     width: parent.width - 40px;
                     row-h: 116px;
                     checked: root.set-capture-app;
-                    setting-name: "Sertakan Jendela Mini Assistant";
-                    hint1: "Aktifkan jika ingin jendela Mini Assistant ikut terlihat di tangkapan layar.";
-                    hint2: "Nonaktifkan agar jendela otomatis disembunyikan saat jepret sehingga";
-                    hint3: "hanya desktop/game yang tertangkap.";
+                    setting-name: I18n.t("Sertakan Jendela Mini Assistant", "Include Mini Assistant Window");
+                    hint1: I18n.t("Aktifkan jika ingin jendela Mini Assistant ikut terlihat di tangkapan layar.", "Enable to include the Mini Assistant window inside screenshots.");
+                    hint2: I18n.t("Nonaktifkan agar jendela otomatis disembunyikan saat jepret sehingga", "Disable to auto-hide Mini Assistant during capture so only");
+                    hint3: I18n.t("hanya desktop/game yang tertangkap.", "the desktop or active game is captured.");
                     toggled(v) => { root.setting-toggled("capture-app", v); }
                 }
                 SettingToggleRow {
@@ -3055,9 +3151,9 @@ export component MainPanel inherits Window {
                     width: parent.width - 40px;
                     row-h: 96px;
                     checked: root.set-target-window;
-                    setting-name: "Fokus Tangkapan Jendela Aktif (Game / App)";
-                    hint1: "Hanya memotong area jendela game atau aplikasi yang sedang aktif,";
-                    hint2: "dan otomatis mengecualikan jendela Mini Assistant.";
+                    setting-name: I18n.t("Fokus Tangkapan Jendela Aktif (Game / App)", "Focus Active Window Capture (Game / App)");
+                    hint1: I18n.t("Hanya memotong area jendela game atau aplikasi yang sedang aktif,", "Crop capture tightly to the currently focused game or app window,");
+                    hint2: I18n.t("dan otomatis mengecualikan jendela Mini Assistant.", "automatically excluding Mini Assistant windows.");
                     toggled(v) => { root.setting-toggled("target-window", v); }
                 }
                 SettingToggleRow {
@@ -3065,9 +3161,9 @@ export component MainPanel inherits Window {
                     width: parent.width - 40px;
                     row-h: 96px;
                     checked: root.set-random-singing;
-                    setting-name: "Random Singing (Saat Bubble Idle)";
-                    hint1: "Aemeath memutar lagu acak dari assets/musik/ saat mode Bubble idle.";
-                    hint2: "Berhenti otomatis saat HUD/Panel dibuka, chat AI berjalan, atau klik kanan Bubble.";
+                    setting-name: I18n.t("Random Singing (Saat Bubble Idle)", "Random Singing (When Bubble Idle)");
+                    hint1: I18n.t("Aemeath memutar lagu acak dari assets/musik/ saat mode Bubble idle.", "Aemeath plays random tracks from assets/musik/ while Bubble is idle.");
+                    hint2: I18n.t("Berhenti otomatis saat HUD/Panel dibuka, chat AI berjalan, atau klik kanan Bubble.", "Stops automatically when opening HUD/Panel, chatting, or right-clicking Bubble.");
                     toggled(v) => { root.setting-toggled("random-singing", v); }
                 }
                 SettingToggleRow {
@@ -3075,9 +3171,10 @@ export component MainPanel inherits Window {
                     width: parent.width - 40px;
                     row-h: 96px;
                     checked: root.set-sing-ram-guard;
-                    setting-name: "Auto-Stop Musik saat RAM ≥ 85%";
-                    hint1: "Matikan musik otomatis jika penggunaan RAM sistem ≥ 85%" + (root.sing-ram-pct > 0 ? " (terpakai: " + root.sing-ram-pct + "%)" : "") + ",";
-                    hint2: "dan bebaskan buffer audio agar sistem tetap ringan.";
+                    setting-name: I18n.t("Auto-Stop Musik saat RAM ≥ 85%", "Auto-Stop Music when RAM ≥ 85%");
+                    hint1: I18n.t("Matikan musik otomatis jika penggunaan RAM sistem ≥ 85%", "Automatically stop music if system RAM usage reaches ≥ 85%")
+                        + (root.sing-ram-pct > 0 ? I18n.t(" (terpakai: ", " (used: ") + root.sing-ram-pct + "%)" : "") + ",";
+                    hint2: I18n.t("dan bebaskan buffer audio agar sistem tetap ringan.", "and release audio buffers to keep your system responsive.");
                     toggled(v) => { root.setting-toggled("sing-ram-guard", v); }
                 }
 
@@ -3089,8 +3186,8 @@ export component MainPanel inherits Window {
 
                     Text {
                         x: 0; y: 0;
-                        width: 112px; height: 38px;
-                        text: "Volume Nyanyi";
+                        width: 118px; height: 38px;
+                        text: I18n.t("Volume Nyanyi", "Singing Volume");
                         color: Tokens.text-main;
                         font-family: Tokens.font-display;
                         font-size: Tokens.panel-font-min;
@@ -3098,7 +3195,7 @@ export component MainPanel inherits Window {
                         vertical-alignment: center;
                     }
                     for v[vi] in [25, 50, 85, 100] : Rectangle {
-                        x: 116px + vi * 62px;
+                        x: 122px + vi * 60px;
                         y: 2px;
                         width: 54px; height: 34px;
                         background: root.sing-volume == v ? #FF8FB124 : #FFFFFF0D;
@@ -3127,8 +3224,10 @@ export component MainPanel inherits Window {
                         icon: root.sing-previewing ? "close" : "soundwave";
                         icon-size: 14px;
                         label: root.sing-previewing
-                            ? "Hentikan Nyanyi"
-                            : (root.sing-track-count > 0 ? "Uji Nyanyi (" + root.sing-track-count + " lagu)" : "Belum Ada Lagu");
+                            ? I18n.t("Hentikan Nyanyi", "Stop Singing")
+                            : (root.sing-track-count > 0
+                                ? I18n.t("Uji Nyanyi (", "Test Sing (") + root.sing-track-count + I18n.t(" lagu)", root.sing-track-count == 1 ? " track)" : " tracks)")
+                                : I18n.t("Belum Ada Lagu", "No Tracks Found"));
                         enabled: root.sing-previewing || root.sing-track-count > 0;
                         clicked => { root.sing-test-toggled(); }
                     }
@@ -3147,7 +3246,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Penyimpanan Data";
+                    text: I18n.t("Penyimpanan Data", "Data Storage");
                     color: Tokens.overdrive-red;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -3156,7 +3255,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 52px;
                     width: parent.width - 40px;
-                    text: "Database tersimpan secara lokal dan aman di perangkat komputer Anda.";
+                    text: I18n.t("Database tersimpan secara lokal dan aman di perangkat komputer Anda.", "Your database is stored locally and securely on this device.");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -3178,7 +3277,7 @@ export component MainPanel inherits Window {
                     Text {
                         x: 38px; y: 0;
                         height: 40px;
-                        text: "HAPUS SEMUA RIWAYAT";
+                        text: I18n.t("HAPUS SEMUA RIWAYAT", "DELETE ALL HISTORY");
                         color: Tokens.overdrive-red;
                         font-family: Tokens.font-display;
                         font-size: Tokens.panel-font-min;
@@ -3203,7 +3302,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Chat & Pengiriman Pesan";
+                    text: I18n.t("Chat & Pengiriman Pesan", "Chat & Message Sending");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -3214,8 +3313,8 @@ export component MainPanel inherits Window {
                     width: parent.width - 40px;
                     row-h: 72px;
                     checked: root.set-enter-sends;
-                    setting-name: "Enter = Kirim Pesan";
-                    hint1: "Aktif: Enter kirim, Shift+Enter baris baru. Nonaktif: kirim lewat tombol.";
+                    setting-name: I18n.t("Enter = Kirim Pesan", "Enter = Send Message");
+                    hint1: I18n.t("Aktif: Enter kirim, Shift+Enter baris baru. Nonaktif: kirim lewat tombol.", "On: Enter sends, Shift+Enter adds a newline. Off: send via button.");
                     toggled(v) => { root.setting-toggled("enter-sends", v); }
                 }
                 SettingToggleRow {
@@ -3223,9 +3322,9 @@ export component MainPanel inherits Window {
                     width: parent.width - 40px;
                     row-h: 96px;
                     checked: root.set-send-close;
-                    setting-name: "Tutup Jendela Setelah Kirim";
-                    hint1: "HUD otomatis mengecil setelah pesan dikirim, lalu jawaban AI muncul";
-                    hint2: "di bubble samping maskot seperti hasil terjemahan layar.";
+                    setting-name: I18n.t("Tutup Jendela Setelah Kirim", "Minimize HUD After Send");
+                    hint1: I18n.t("HUD otomatis mengecil setelah pesan dikirim, lalu jawaban AI muncul", "HUD collapses after sending and streams the AI reply into");
+                    hint2: I18n.t("di bubble samping maskot seperti hasil terjemahan layar.", "the mascot speech bubble, just like Screen Translate.");
                     toggled(v) => { root.setting-toggled("send-close", v); }
                 }
             }
@@ -3240,7 +3339,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Prompt Terjemahan Layar";
+                    text: I18n.t("Prompt Terjemahan Layar", "Screen Translation Prompt");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -3249,7 +3348,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 50px;
                     width: parent.width - 40px;
-                    text: "Instruksi yang dikirim bersama screenshot. {lang} = bahasa target.";
+                    text: I18n.t("Instruksi yang dikirim bersama screenshot. {lang} = bahasa target.", "Instruction sent alongside the screenshot. {lang} = target language.");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -3262,7 +3361,7 @@ export component MainPanel inherits Window {
                     spacing: 10px;
                     alignment: start;
 
-                    for preset[pi] in ["Semua teks layar", "Hanya percakapan", "Terjemah + ringkas"] : Rectangle {
+                    for pi in [0, 1, 2] : Rectangle {
                         width: pr-lbl.preferred-width + 26px; height: 34px;
                         background: #FFFFFF0D;
                         border-width: 1px;
@@ -3271,7 +3370,9 @@ export component MainPanel inherits Window {
                         pr-lbl := Text {
                             x: 13px; y: 0;
                             height: 34px;
-                            text: preset;
+                            text: pi == 0 ? I18n.t("Semua teks layar", "All screen text")
+                                : pi == 1 ? I18n.t("Hanya percakapan", "Chat messages only")
+                                : I18n.t("Terjemah + ringkas", "Translate + summary");
                             color: Tokens.text-main;
                             font-family: Tokens.font-sans;
                             font-size: Tokens.panel-font-min;
@@ -3281,11 +3382,20 @@ export component MainPanel inherits Window {
                             mouse-cursor: pointer;
                             clicked => {
                                 if (pi == 0) {
-                                    root.translate-prompt = "Terjemahkan seluruh teks pada layar ini ke dalam bahasa {lang}.";
+                                    root.translate-prompt = I18n.t(
+                                        "Terjemahkan seluruh teks pada layar ini ke dalam bahasa {lang}.",
+                                        "Translate all visible text on this screen into {lang}."
+                                    );
                                 } else if (pi == 1) {
-                                    root.translate-prompt = "Terjemahkan hanya isi percakapan/chat pada layar ini ke dalam bahasa {lang}. Abaikan tombol, menu, ikon, dan elemen antarmuka lainnya.";
+                                    root.translate-prompt = I18n.t(
+                                        "Terjemahkan hanya isi percakapan/chat pada layar ini ke dalam bahasa {lang}. Abaikan tombol, menu, ikon, dan elemen antarmuka lainnya.",
+                                        "Translate only the chat/dialogue text on this screen into {lang}. Ignore buttons, menus, icons, and other UI chrome."
+                                    );
                                 } else {
-                                    root.translate-prompt = "Terjemahkan teks utama pada layar ini ke dalam bahasa {lang}, lalu beri ringkasan satu kalimat di akhir.";
+                                    root.translate-prompt = I18n.t(
+                                        "Terjemahkan teks utama pada layar ini ke dalam bahasa {lang}, lalu beri ringkasan satu kalimat di akhir.",
+                                        "Translate the main text on this screen into {lang}, followed by a one-sentence summary at the end."
+                                    );
                                 }
                             }
                         }
@@ -3320,7 +3430,7 @@ export component MainPanel inherits Window {
                     chamfer-fill: #101627;
                     icon: "check";
                     icon-size: 15px;
-                    label: "SIMPAN PROMPT";
+                    label: I18n.t("SIMPAN PROMPT", "SAVE PROMPT");
                     clicked => { root.translate-prompt-saved(root.translate-prompt); }
                 }
                 HoloButton {
@@ -3343,7 +3453,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 18px;
-                    text: "Tampilan Teks Chat";
+                    text: I18n.t("Tampilan Teks Chat", "Chat Typography");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -3352,7 +3462,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 20px; y: 50px;
                     width: parent.width - 40px;
-                    text: "Ukuran dan jenis font untuk balasan di HUD dan bubble.";
+                    text: I18n.t("Ukuran dan jenis font untuk balasan di HUD dan bubble.", "Font size and family for replies inside HUD and Bubble.");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -3360,7 +3470,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 88px;
-                    text: "Ukuran Font";
+                    text: I18n.t("Ukuran Font", "Font Size");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-md;
@@ -3391,7 +3501,7 @@ export component MainPanel inherits Window {
 
                 Text {
                     x: 20px; y: 162px;
-                    text: "Jenis Font";
+                    text: I18n.t("Jenis Font", "Font Family");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-md;
@@ -3435,13 +3545,245 @@ export component MainPanel inherits Window {
                     Text {
                         x: 14px; y: 0;
                         width: parent.width - 28px; height: parent.height;
-                        text: "Contoh: Halo! Ini tampilan teks chat Aemeath 123.";
+                        text: I18n.t("Contoh: Halo! Ini tampilan teks chat Aemeath 123.", "Preview: Hello! This is how Aemeath chat text looks 123.");
                         color: #FFFFFF;
                         font-family: root.font-family-sel;
                         font-size: root.font-size-px * 1px;
                         vertical-alignment: center;
                         overflow: elide;
                     }
+                }
+            }
+
+            // Card 8: App Language (ID / EN)
+            GlassCard {
+                property <length> col-w: (parent.width - 56px) / 2;
+                x: 0; y: 2594px;
+                width: parent.width;
+                height: 146px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: I18n.t("Bahasa Aplikasi (ID / EN)", "App Language (ID / EN)");
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 50px;
+                    width: parent.width - 40px;
+                    text: I18n.t(
+                        "Ubah bahasa antarmuka Mini Assistant secara langsung tanpa restart.",
+                        "Switch Mini Assistant interface language instantly without restarting."
+                    );
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+
+                for opt[oi] in [
+                    { code: "id", badge: "ID", title: "Bahasa Indonesia" },
+                    { code: "en", badge: "EN", title: "English" }
+                ] : Rectangle {
+                    property <bool> is-selected: I18n.lang == opt.code;
+                    x: 20px + oi * (col-w + 16px);
+                    y: 84px;
+                    width: col-w;
+                    height: 44px;
+                    background: self.is-selected ? #FF8FB124 : #FFFFFF08;
+                    border-width: 1px;
+                    border-color: self.is-selected ? Tokens.aemeath-pink : Tokens.border-subtle;
+                    border-radius: 10px;
+
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.app-lang-selected(opt.code); }
+                    }
+                    Rectangle {
+                        x: 12px; y: 10px;
+                        width: 34px; height: 24px;
+                        border-radius: 6px;
+                        background: is-selected ? Tokens.aemeath-pink : #FFFFFF12;
+                        Text {
+                            width: parent.width; height: parent.height;
+                            text: opt.badge;
+                            color: is-selected ? #070A12 : Tokens.text-muted;
+                            font-family: Tokens.font-mono-bold;
+                            font-size: 12px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Text {
+                        x: 56px; y: 0;
+                        width: parent.width - 96px; height: parent.height;
+                        text: opt.title;
+                        color: is-selected ? #FFFFFF : Tokens.text-muted;
+                        font-family: Tokens.font-sans-bold;
+                        font-size: Tokens.panel-font-md;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    if is-selected : Icon {
+                        x: parent.width - 28px; y: 15px;
+                        size: 14px;
+                        name: "check";
+                        tint: Tokens.aemeath-soft;
+                    }
+                }
+            }
+
+            // Card 9: Dynamic Human Reading Auto-Scroll for BubbleWindow
+            GlassCard {
+                x: 0; y: 2756px;
+                width: parent.width;
+                height: 248px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: I18n.t("Auto-Scroll Bacaan Bubble", "Bubble Reading Auto-Scroll");
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 48px;
+                    width: parent.width - 40px;
+                    text: I18n.t(
+                        "Scroll perlahan bertahap lalu berhenti sejenak mengikuti kecepatan baca saat teks panjang.",
+                        "Glides slowly in short steps with calm pauses at human reading pace for long texts."
+                    );
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+
+                SettingToggleRow {
+                    x: 20px; y: 76px;
+                    width: parent.width - 40px;
+                    row-h: 90px;
+                    checked: root.set-bubble-auto-scroll;
+                    setting-name: I18n.t("Aktifkan Auto-Scroll Dinamis", "Enable Dynamic Auto-Scroll");
+                    hint1: I18n.t(
+                        "Mulai dari atas, scroll perlahan lalu berhenti bertahap tanpa melompat.",
+                        "Starts at the top, glides slowly then pauses step-by-step without jumps."
+                    );
+                    hint2: I18n.t(
+                        "Otomatis jeda saat hover kursor dan berhenti penuh bila Anda scroll manual.",
+                        "Automatically pauses on hover and yields immediately if you scroll manually."
+                    );
+                    toggled(v) => { root.setting-toggled("bubble-auto-scroll", v); }
+                }
+
+                Rectangle {
+                    x: 20px; y: 182px;
+                    width: parent.width - 40px;
+                    height: 42px;
+
+                    Text {
+                        x: 0; y: 0;
+                        width: 132px; height: 42px;
+                        text: I18n.t("Kecepatan Baca", "Reading Speed");
+                        color: Tokens.text-main;
+                        font-family: Tokens.font-display;
+                        font-size: Tokens.panel-font-min;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+
+                    HorizontalLayout {
+                        x: 138px; y: 3px;
+                        width: parent.width - 138px;
+                        height: 36px;
+                        spacing: 10px;
+                        alignment: start;
+
+                        for opt[oi] in [
+                            { code: "slow", label: I18n.t("Santai · 2,2 kata/dtk", "Slow · 2.2 wps") },
+                            { code: "normal", label: I18n.t("Normal · 2,8 kata/dtk", "Normal · 2.8 wps") },
+                            { code: "fast", label: I18n.t("Cepat · 3,6 kata/dtk", "Fast · 3.6 wps") }
+                        ] : speed-pill := Rectangle {
+                            property <bool> is-selected: root.bubble-read-speed == opt.code;
+                            width: spd-t.preferred-width + 24px;
+                            height: 36px;
+                            opacity: root.set-bubble-auto-scroll ? 1.0 : 0.55;
+                            background: speed-pill.is-selected ? #3CE8FF24 : #FFFFFF0D;
+                            border-width: 1px;
+                            border-color: speed-pill.is-selected ? Tokens.halo-cyan : Tokens.border-subtle;
+                            border-radius: 18px;
+
+                            spd-t := Text {
+                                x: 12px; y: 0;
+                                height: 36px;
+                                text: opt.label;
+                                color: speed-pill.is-selected ? #FFFFFF : Tokens.text-muted;
+                                font-family: Tokens.font-sans;
+                                font-size: Tokens.panel-font-min;
+                                font-weight: speed-pill.is-selected ? 700 : 400;
+                                vertical-alignment: center;
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.bubble-read-speed-selected(opt.code); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Card 10: Startup Browser Session & Cookie Sync
+            GlassCard {
+                x: 0; y: 3020px;
+                width: parent.width;
+                height: 176px;
+                diamond: true;
+                chamfer: true;
+
+                Text {
+                    x: 20px; y: 18px;
+                    text: I18n.t("Sinkronisasi Sesi & Cookies", "Session & Cookie Sync");
+                    color: Tokens.text-main;
+                    font-family: Tokens.font-display;
+                    font-size: Tokens.panel-font-card;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 20px; y: 48px;
+                    width: parent.width - 40px;
+                    text: I18n.t(
+                        "Jaga sesi DeepSeek tetap aktif saat aplikasi dibuka tanpa perlu ambil cookie ulang.",
+                        "Keep your DeepSeek session ready on launch without manual cookie fetching."
+                    );
+                    color: Tokens.text-muted;
+                    font-family: Tokens.font-sans;
+                    font-size: Tokens.panel-font-min;
+                }
+
+                SettingToggleRow {
+                    x: 20px; y: 74px;
+                    width: parent.width - 40px;
+                    row-h: 86px;
+                    checked: root.set-auto-sync-cookies;
+                    setting-name: I18n.t(
+                        "Auto-Sync Sesi Browser saat Startup",
+                        "Auto-Sync Browser Sessions on Startup"
+                    );
+                    hint1: I18n.t(
+                        "Otomatis memuat sesi dari Chrome/Edge jika vault kosong atau token kedaluwarsa.",
+                        "Automatically syncs Chrome/Edge sessions if vault is empty or token expired."
+                    );
+                    hint2: I18n.t(
+                        "Menghormati hapus manual: tidak akan menarik ulang jika semua key sengaja dihapus.",
+                        "Respects manual deletion: will not re-import if you manually cleared all keys."
+                    );
+                    toggled(v) => { root.setting-toggled("auto-sync-cookies", v); }
                 }
             }
 
@@ -3717,7 +4059,7 @@ export component MainPanel inherits Window {
             Text {
                 x: 50px; y: 20px;
                 width: parent.width - 114px;
-                text: "Tutup Control Panel";
+                text: I18n.t("Tutup Control Panel", "Close Control Panel");
                 color: Tokens.text-main;
                 font-family: Tokens.font-display;
                 font-size: Tokens.panel-font-title;
@@ -3743,7 +4085,10 @@ export component MainPanel inherits Window {
             Text {
                 x: 24px; y: 54px;
                 width: parent.width - 48px;
-                text: "Pilih apakah ingin kembali ke Floating HUD atau menghentikan seluruh sistem Mini Assistant:";
+                text: I18n.t(
+                    "Pilih apakah ingin kembali ke Floating HUD atau menghentikan seluruh sistem Mini Assistant:",
+                    "Choose whether to switch back to the Floating HUD or shut down Mini Assistant completely:"
+                );
                 color: Tokens.text-muted;
                 font-family: Tokens.font-sans;
                 font-size: Tokens.panel-font-min;
@@ -3777,7 +4122,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 52px; y: 12px;
                     width: parent.width - 70px;
-                    text: "Tutup Control Panel (Beralih ke HUD)";
+                    text: I18n.t("Tutup Control Panel (Beralih ke HUD)", "Close Control Panel (Switch to HUD)");
                     color: Tokens.text-main;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -3786,7 +4131,10 @@ export component MainPanel inherits Window {
                 Text {
                     x: 52px; y: 38px;
                     width: parent.width - 70px;
-                    text: "Control Panel disembunyikan dan jendela Floating HUD langsung dibuka.";
+                    text: I18n.t(
+                        "Control Panel disembunyikan dan jendela Floating HUD langsung dibuka.",
+                        "Hides the Control Panel and opens the Floating HUD immediately."
+                    );
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -3821,7 +4169,7 @@ export component MainPanel inherits Window {
                 Text {
                     x: 52px; y: 12px;
                     width: parent.width - 70px;
-                    text: "Close System (Matikan Semua)";
+                    text: I18n.t("Close System (Matikan Semua)", "Close System (Exit Everything)");
                     color: #FFDCE6;
                     font-family: Tokens.font-display;
                     font-size: Tokens.panel-font-card;
@@ -3830,7 +4178,10 @@ export component MainPanel inherits Window {
                 Text {
                     x: 52px; y: 38px;
                     width: parent.width - 70px;
-                    text: "Keluar penuh dari Control Panel, HUD, Bubble, hotkey & backend API AI.";
+                    text: I18n.t(
+                        "Keluar penuh dari Control Panel, HUD, Bubble, hotkey & backend API AI.",
+                        "Fully exits Control Panel, HUD, Bubble, hotkeys & the AI API backend."
+                    );
                     color: #FCA5A5;
                     font-family: Tokens.font-sans;
                     font-size: Tokens.panel-font-min;
@@ -3855,7 +4206,7 @@ export component MainPanel inherits Window {
                 }
                 Text {
                     width: parent.width; height: parent.height;
-                    text: "Batal";
+                    text: I18n.t("Batal", "Cancel");
                     color: Tokens.text-muted;
                     font-family: Tokens.font-sans-semibold;
                     font-size: Tokens.panel-font-min;
